@@ -35,7 +35,7 @@ pip install git+https://github.com/Linusp/python-inoreader.git
    appkey = your-app-key
    ```
 
-3. Login to your Inoreader acount
+3. Login to your Inoreader account
 
    ```shell
    inoreader login
