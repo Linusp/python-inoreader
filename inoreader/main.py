@@ -10,7 +10,9 @@ import argparse
 from datetime import datetime
 from configparser import ConfigParser
 
+import yaml
 from inoreader import InoreaderClient
+from inoreader.filter import Filter
 
 
 APPID_ENV_NAME = 'INOREADER_APP_ID'
@@ -162,6 +164,73 @@ def fetch_unread(folder, tags, outfile, out_format):
     fout.close()
 
 
+def add_filter_parser(subparsers):
+    parser = subparsers.add_parser('filter', help='Select articles and do something')
+    parser.add_argument("-f", "--folder", required=True, help='Folder which articles belong to')
+    parser.add_argument("-r", "--rules", required=True, help='YAML file with your rules')
+    parser.add_argument("-a", "--action", default='read',
+                        choices=['read', 'like', 'tag', 'broadcast', 'star'],
+                        help='Action you want to perform, default: read')
+    parser.add_argument("-t", "--tags",
+                        help="Tag(s) to be used when action is 'tag', seprate with comma")
+
+
+def apply_action(articles, client, action, tags):
+    if action == 'tag':
+        for tag in tags.split(','):
+            client.add_tag(articles, tag)
+
+        for article in articles:
+            print("Add tags [{}] on article: {}".format(tags, article.title))
+    elif action == 'read':
+        client.mark_as_read(articles)
+        for article in articles:
+            print("Mark article as read: {}".format(article.title))
+    elif action == 'like':
+        client.mark_as_liked(articles)
+        for article in articles:
+            print("Mark article as liked: {}".format(article.title))
+    elif action == 'broadcast':
+        client.broadcast(articles)
+        for article in articles:
+            print("Boradcast article: {}".format(article.title))
+    elif action == 'star':
+        client.mark_as_starred(articles)
+        for article in articles:
+            print("Starred article: {}".format(article.title))
+
+
+def filter_articles(folder, rules_file, action, tags):
+    client = get_client()
+    filters = []
+    for rule in yaml.load(open(rules_file)):
+        filters.append({
+            'field': rule.get('field', 'title'),
+            'filter': Filter.from_config(rule),
+        })
+
+    matched_articles = []
+    for idx, article in enumerate(client.fetch_unread(folder=folder)):
+        matched = False
+        for article_filter in filters:
+            if article_filter['field'] in ('title', 'title_or_content') and \
+               article_filter['filter'].validate(article.title):
+                matched = True
+                break
+            if article_filter['field'] in ('content', 'title_or_content') and \
+               article_filter['filter'].validate(article.text):
+                matched = True
+                break
+        if matched:
+            matched_articles.append(article)
+            if len(matched_articles) == 10:
+                apply_action(matched_articles, client, action, tags)
+                matched_articles = []
+
+    if matched_articles:
+        apply_action(matched_articles, client, action, tags)
+
+
 def main():
     parser = CmdParser(
         usage="inoreader [-h] <command> ...",
@@ -174,6 +243,7 @@ def main():
     add_folders_list_parser(subparsers)
     add_tags_list_parser(subparsers)
     add_unread_fetch_parser(subparsers)
+    add_filter_parser(subparsers)
 
     args = parser.parse_args()
     if args.command == 'login':
@@ -184,6 +254,12 @@ def main():
         list_tags()
     elif args.command == 'fetch-unread':
         fetch_unread(args.folder, args.tags, args.outfile, args.out_format)
+    elif args.command == 'filter':
+        if args.action == 'tag' and not args.tags:
+            print("Need at least one tag when action is 'tag'!")
+            sys.exit(1)
+
+        filter_articles(args.folder, args.rules, args.action, args.tags)
 
 
 if __name__ == '__main__':
