@@ -137,3 +137,33 @@ class InoreaderClient(object):
                     continue
                 yield Article.from_json(data)
             continuation = resp.json().get('continuation')
+
+    def add_general_label(self, articles, label):
+        if not self.auth_token:
+            raise NotLoginError
+
+        url = urljoin(BASE_URL, 'edit-tag')
+        for start in range(0, len(articles), 10):
+            end = min(start + 10, len(articles))
+            params = {
+                'a': label,
+                'i': [articles[idx].id for idx in range(start, end)]
+            }
+            resp = self.session.post(url, params=params)
+            if resp.status_code != 200:
+                raise APIError(resp.text)
+
+    def add_tag(self, articles, tag):
+        self.add_general_label(articles, 'user/-/label/{}'.format(tag))
+
+    def mark_as_read(self, articles):
+        self.add_general_label(articles, 'user/-/state/com.google/read')
+
+    def mark_as_starred(self, articles):
+        self.add_general_label(articles, 'user/-/state/com.google/starred')
+
+    def mark_as_liked(self, articles):
+        self.add_general_label(articles, 'user/-/state/com.google/like')
+
+    def broadcast(self, articles):
+        self.add_general_label(articles, 'user/-/state/com.google/broadcast')
