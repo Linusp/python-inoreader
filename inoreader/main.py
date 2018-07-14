@@ -58,7 +58,11 @@ def get_client():
         print("Please login first")
         sys.exit(1)
 
-    client = InoreaderClient(appid, appkey, token)
+    userid = None
+    if config.has_section('user'):
+        userid = config.get('user', 'id')
+
+    client = InoreaderClient(appid, appkey, userid=userid, auth_token=token)
     return client
 
 
@@ -95,6 +99,10 @@ def login():
             config['auth']['token'] = auth_token
         else:
             config['auth'] = {'token': auth_token}
+
+        appid, appkey = get_appid_key(config)
+        client = InoreaderClient(appid, appkey, auth_token=auth_token)
+        config['user'] = {'email': username, 'id': client.userinfo()['userId']}
         with codecs.open(CONFIG_FILE, mode='w', encoding='utf-8') as fconfig:
             config.write(fconfig)
         print("save token in {}, ".format(username, CONFIG_FILE))
