@@ -1,0 +1,13 @@
+- field: title_or_content                  # title/content/title_or_content
+  type: include_any                        # include_any/include_all/exclude
+  rules:
+    - 权威认证
+    - 值得拥有
+    - 潮牌
+    - 新款
+    - 求助
+    - 招聘
+    - 免费版
+    - 包邮
+    - 天猫
+    - 淘宝
