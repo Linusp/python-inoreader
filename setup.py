@@ -8,6 +8,7 @@ VERSION = '0.1.0'
 REQS = [
     'lxml',
     'requests',
+    'PyYAML',
 ]
 
 
