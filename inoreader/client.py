@@ -18,7 +18,7 @@ from .article import Article
 
 class InoreaderClient(object):
 
-    def __init__(self, app_id, app_key, auth_token=None):
+    def __init__(self, app_id, app_key, userid=None, auth_token=None):
         self.app_id = app_id
         self.app_key = app_key
         self.auth_token = auth_token
@@ -28,7 +28,10 @@ class InoreaderClient(object):
             'AppKey': self.app_key,
             'Authorization': 'GoogleLogin auth={}'.format(self.auth_token)
         })
-        self.userid = None if not self.auth_token else self.userinfo()['userId']
+        if userid:
+            self.userid = userid
+        else:
+            self.userid = None if not self.auth_token else self.userinfo()['userId']
 
     def userinfo(self):
         if not self.auth_token:
