@@ -1,34 +1,22 @@
 import re
 
 
-class Filter(object):
-    def __init__(self, *args, **kwargs):
-        pass
-
-    @classmethod
-    def from_config(cls, config):
-        """
-        config: {
-            'type': 'include_any',
-            'rules': [],
-        }
-        """
-        cls_map = {
-            sub_cls.name: sub_cls
-            for sub_cls in cls.__subclasses__()
-        }
-
-        sub_cls = config['type']
-        rules = config['rules']
-        return cls_map[sub_cls](rules)
-
-    def validate(self, text):
-        raise NotImplementedError
+_FILTERS = {}
 
 
-class IncludeAnyFilter(Filter):
+def register_filter(name, override=False):
+    def wrap(cls):
+        global _FILTERS
+        if name not in _FILTERS or override:
+            _FILTERS[name] = cls
 
-    name = 'include_any'
+        return cls
+
+    return wrap
+
+
+@register_filter('include_any')
+class IncludeAnyFilter(object):
 
     def __init__(self, rules):
         self.rules = [re.compile(regexp) for regexp in rules]
@@ -41,9 +29,8 @@ class IncludeAnyFilter(Filter):
         return False
 
 
-class IncludeAllFilter(Filter):
-
-    name = 'include_all'
+@register_filter('include_all')
+class IncludeAllFilter(object):
 
     def __init__(self, rules):
         self.rules = [re.compile(regexp) for regexp in rules]
@@ -56,9 +43,8 @@ class IncludeAllFilter(Filter):
         return True
 
 
-class ExcludeFilter(Filter):
-
-    name = 'exclude'
+@register_filter('exclude')
+class ExcludeFilter(object):
 
     def __init__(self, rules):
         self.rules = [re.compile(regexp) for regexp in rules]
@@ -69,3 +55,13 @@ class ExcludeFilter(Filter):
                 return False
 
         return True
+
+
+def get_filter(config):
+    filter_type = config['type']
+    if filter_type not in _FILTERS:
+        raise ValueError("unsupported filter type: {}".format(filter_type))
+
+    filter_cls = _FILTERS[filter_type]
+    params = {k: v for k, v in config.items() if k != 'type'}
+    return filter_cls(**params)
