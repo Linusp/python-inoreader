@@ -1,32 +1,7 @@
 import re
 
 
-class Filter(object):
-    def __init__(self, *args, **kwargs):
-        pass
-
-    @classmethod
-    def from_config(cls, config):
-        """
-        config: {
-            'type': 'include_any',
-            'rules': [],
-        }
-        """
-        cls_map = {
-            sub_cls.name: sub_cls
-            for sub_cls in cls.__subclasses__()
-        }
-
-        sub_cls = config['type']
-        rules = config['rules']
-        return cls_map[sub_cls](rules)
-
-    def validate(self, text):
-        raise NotImplementedError
-
-
-class IncludeAnyFilter(Filter):
+class IncludeAnyFilter(object):
 
     name = 'include_any'
 
@@ -41,7 +16,7 @@ class IncludeAnyFilter(Filter):
         return False
 
 
-class IncludeAllFilter(Filter):
+class IncludeAllFilter(object):
 
     name = 'include_all'
 
@@ -56,7 +31,7 @@ class IncludeAllFilter(Filter):
         return True
 
 
-class ExcludeFilter(Filter):
+class ExcludeFilter(object):
 
     name = 'exclude'
 
@@ -69,3 +44,20 @@ class ExcludeFilter(Filter):
                 return False
 
         return True
+
+
+FILTER_MAP = {
+    'include_all': IncludeAllFilter,
+    'include_any': IncludeAnyFilter,
+    'exclude': ExcludeFilter,
+}
+
+
+def get_filter(config):
+    filter_type = config['type']
+    if filter_type not in FILTER_MAP:
+        raise ValueError("unsupported filter type: {}".format(filter_type))
+
+    filter_cls = FILTER_MAP[filter_type]
+    params = {k: v for k, v in config.items() if k != 'type'}
+    return filter_cls(**params)
