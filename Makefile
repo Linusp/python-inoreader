@@ -7,10 +7,11 @@ clean:
 	- rm cobertura.xml -f
 	- rm testresult.xml -f
 	- rm .coverage -f
+	- rm .pytest_cache -rf
 
 venv:
 	- virtualenv --python=$(shell which python3) --prompt '<venv:inoreader>' venv
 
-deps: venv
-	- venv/bin/pip install -U pip setuptools
-	- venv/bin/pip install -r requirements.txt
+deps:
+	- pip install -U pip setuptools
+	- pip install -r requirements.txt
