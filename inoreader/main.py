@@ -142,7 +142,7 @@ def add_unread_fetch_parser(subparsers):
     parser.add_argument("-o", "--outfile", required=True, help="Filename to save articles")
     parser.add_argument(
         "--out-format",
-        choices=['json', 'csv', 'plain'],
+        choices=['json', 'csv', 'plain', 'markdown', 'org-mode'],
         default='json',
         help='Format of output file, default: json'
     )
@@ -167,6 +167,12 @@ def fetch_unread(folder, tags, outfile, out_format):
             print('TITLE: {}'.format(title), file=fout)
             print("CONTENT: {}".format(text), file=fout)
             print(file=fout)
+        elif out_format == 'markdown':
+            print('# {}\n'.format(title), file=fout)
+            print(text + '\n', file=fout)
+        elif out_format == 'org-mode':
+            print('* {}\n'.format(title), file=fout)
+            print(text + '\n', file=fout)
 
     print("[{}] fetched {} articles and saved them in {}".format(datetime.now(), idx + 1, outfile))
 
