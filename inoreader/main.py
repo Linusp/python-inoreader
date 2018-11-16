@@ -7,13 +7,14 @@ import sys
 import json
 import codecs
 from datetime import datetime
-from collections import defaultdict
+from collections import defaultdict, Counter
 from configparser import ConfigParser
 
 import yaml
 import click
 from inoreader import InoreaderClient
 from inoreader.filter import get_filter
+from inoreader.sim import sim_of, InvIndex
 
 
 APPID_ENV_NAME = 'INOREADER_APP_ID'
@@ -330,6 +331,35 @@ def fetch_articles(outfile, stream_id, out_format):
     print("[{}] fetched {} articles and saved them in {}".format(datetime.now(), idx + 1, outfile))
 
     fout.close()
+
+
+@main.command()
+@click.option("-f", "--folder", help="Folder you want to deduplicate")
+@click.option("-t", "--thresh", type=float, default=0.8,
+              help="Minimum similarity score")
+def dedupe(folder, thresh):
+    """Deduplicate articles"""
+    client = get_client()
+    matched_articles, index = [], InvIndex()
+    for idx, article in enumerate(client.fetch_unread(folder=folder)):
+        related = index.retrieve(article.title, k=10)
+        sims = Counter()
+        for docid, doc, _ in related:
+            if docid == article.id:
+                continue
+            sims[doc] = sim_of(doc, article.title, method='cosine', term='char', ngram_range=(2, 3))
+
+        if sims and max(sims.values()) >= thresh:
+            top_doc, top_score = sims.most_common()[0]
+            print("article 「{}」 is duplicate with  -> 「{}」".format(
+                article.title, top_doc
+            ))
+            matched_articles.append(article)
+            continue
+
+        index.add_doc(article)
+
+    apply_action(matched_articles, client, 'mark_as_read', None)
 
 
 if __name__ == '__main__':
