@@ -6,7 +6,7 @@ class IncludeAnyFilter(object):
     name = 'include_any'
 
     def __init__(self, rules):
-        self.rules = [re.compile(regexp) for regexp in rules]
+        self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
 
     def validate(self, text):
         for regexp in self.rules:
@@ -21,7 +21,7 @@ class IncludeAllFilter(object):
     name = 'include_all'
 
     def __init__(self, rules):
-        self.rules = [re.compile(regexp) for regexp in rules]
+        self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
 
     def validate(self, text):
         for regexp in self.rules:
@@ -36,7 +36,7 @@ class ExcludeFilter(object):
     name = 'exclude'
 
     def __init__(self, rules):
-        self.rules = [re.compile(regexp) for regexp in rules]
+        self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
 
     def validate(self, text):
         for regexp in self.rules:
