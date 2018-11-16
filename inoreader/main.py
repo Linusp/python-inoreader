@@ -8,12 +8,13 @@ import json
 import codecs
 import argparse
 from datetime import datetime
-from collections import defaultdict
+from collections import defaultdict, Counter
 from configparser import ConfigParser
 
 import yaml
 from inoreader import InoreaderClient
 from inoreader.filter import get_filter
+from inoreader.sim import sim_of, InvIndex
 
 
 APPID_ENV_NAME = 'INOREADER_APP_ID'
@@ -184,6 +185,12 @@ def add_filter_parser(subparsers):
     parser.add_argument("-r", "--rules", required=True, help='YAML file with your rules')
 
 
+def add_dedupe_parser(subparsers):
+    parser = subparsers.add_parser('dedupe', help='mark duplicate articles as read')
+    parser.add_argument("-f", "--folder", help='The folder you want to process')
+    parser.add_argument("-t", "--thresh", type=float, default=0.8)
+
+
 def apply_action(articles, client, action, tags):
     if action == 'tag':
         for tag in tags.split(','):
@@ -275,6 +282,31 @@ def filter_articles(rules_file):
                 apply_action([article], client, 'tag', action['tags'])
 
 
+def dedupe(folder, thresh=0.8):
+    index = InvIndex()
+    client = get_client()
+    matched_articles = []
+    for idx, article in enumerate(client.fetch_unread(folder=folder)):
+        related = index.retrieve(article.title, k=10)
+        sims = Counter()
+        for docid, doc, _ in related:
+            if docid == article.id:
+                continue
+            sims[doc] = sim_of(doc, article.title, method='cosine', term='char', ngram_range=(2, 3))
+
+        if sims and max(sims.values()) >= thresh:
+            top_doc, top_score = sims.most_common()[0]
+            print("article 「{}」 is duplicate with  -> 「{}」".format(
+                article.title, top_doc
+            ))
+            matched_articles.append(article)
+            continue
+
+        index.add_doc(article)
+
+    apply_action(matched_articles, client, 'mark_as_read', None)
+
+
 def main():
     parser = CmdParser(
         usage="inoreader [-h] <command> ...",
@@ -288,6 +320,7 @@ def main():
     add_tags_list_parser(subparsers)
     add_unread_fetch_parser(subparsers)
     add_filter_parser(subparsers)
+    add_dedupe_parser(subparsers)
 
     args = parser.parse_args()
     if args.command == 'login':
@@ -300,6 +333,8 @@ def main():
         fetch_unread(args.folder, args.tags, args.outfile, args.out_format)
     elif args.command == 'filter':
         filter_articles(args.rules)
+    elif args.command == "dedupe":
+        dedupe(args.folder, args.thresh)
 
 
 if __name__ == '__main__':
