@@ -19,7 +19,7 @@ def register_filter(name, override=False):
 class IncludeAnyFilter(object):
 
     def __init__(self, rules):
-        self.rules = [re.compile(regexp) for regexp in rules]
+        self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
 
     def validate(self, text):
         for regexp in self.rules:
@@ -33,7 +33,7 @@ class IncludeAnyFilter(object):
 class IncludeAllFilter(object):
 
     def __init__(self, rules):
-        self.rules = [re.compile(regexp) for regexp in rules]
+        self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
 
     def validate(self, text):
         for regexp in self.rules:
@@ -47,7 +47,7 @@ class IncludeAllFilter(object):
 class ExcludeFilter(object):
 
     def __init__(self, rules):
-        self.rules = [re.compile(regexp) for regexp in rules]
+        self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
 
     def validate(self, text):
         for regexp in self.rules:
