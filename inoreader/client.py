@@ -14,6 +14,7 @@ import requests
 from .consts import BASE_URL, LOGIN_URL
 from .exception import NotLoginError, APIError
 from .article import Article
+from .subscription import Subscription
 
 
 class InoreaderClient(object):
@@ -96,6 +97,44 @@ class InoreaderClient(object):
 
         tags.sort(key=itemgetter('name'))
         return tags
+
+    def get_subscription_list(self):
+        if not self.auth_token:
+            raise NotLoginError
+
+        url = urljoin(BASE_URL, 'subscription/list')
+        resp = self.session.get(url)
+        if resp.status_code != 200:
+            raise APIError(resp.text)
+
+        for item in resp.json()['subscriptions']:
+            yield Subscription.from_json(item)
+
+    def get_stream_contents(self, stream_id):
+        c = ''
+        while True:
+            articles, c = self.__get_stream_contents(stream_id, c)
+            for a in articles:
+                yield Article.from_json(a)
+            if c is None:
+                break
+
+    def __get_stream_contents(self, stream_id, continuation=''):
+        if not self.auth_token:
+            raise NotLoginError
+
+        url = urljoin(BASE_URL, 'stream/contents/' + quote_plus(stream_id))
+        params = {
+            'n': 50, # default 20, max 1000
+            'r': '',
+            'c': continuation,
+            'output': 'json'
+        }
+        resp = self.session.post(url, params=params)
+        if resp.status_code != 200:
+            raise APIError(resp.text)
+
+        return resp.json()['items'], resp.json()['continuation']
 
     def fetch_unread(self, folder=None, tags=None):
         if not self.auth_token:
