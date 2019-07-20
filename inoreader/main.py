@@ -253,5 +253,41 @@ def filter_articles(rules_file):
                 apply_action([article], client, 'tag', action['tags'])
 
 
+@main.command("get-subscriptions")
+@click.option("-o", "--outfile", help="Filename to save results")
+@click.option("-f", "--folder", help='Folder which subscriptions belong to')
+@click.option("--out-format",
+              type=click.Choice(["json", "csv"]), default="csv",
+              help="Format of output, default: csv")
+def get_subscriptions(outfile, folder, out_format):
+    """Get your subscriptions"""
+    client = get_client()
+    results = []
+    for sub in client.get_subscription_list():
+        sub_categories = set([category['label'] for category in sub.categories])
+        if folder and folder not in sub_categories:
+            continue
+
+        results.append({
+            'id': sub.id,
+            'title': sub.title,
+            'url': sub.url,
+            'folders': ';'.join(sub_categories),
+        })
+
+    fout = open(outfile, 'w') if outfile else sys.stdout
+    if out_format == 'csv':
+        headers = ['id', 'title', 'url', 'folders']
+        writer = csv.DictWriter(fout, headers, quoting=csv.QUOTE_ALL, delimiter="\t")
+        writer.writeheader()
+        for item in results:
+            writer.writerow(item)
+    elif out_format == 'json':
+        json.dump(results, fout, ensure_ascii=False, indent=4)
+
+    if outfile:
+        fout.close()
+
+
 if __name__ == '__main__':
     main()
