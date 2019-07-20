@@ -1,5 +1,5 @@
 lint: clean
-	flake8 inoreader --format=pylint || true
+	flake8 inoreader --format=pylint
 
 clean:
 	- find . -iname "*__pycache__" | xargs rm -rf
