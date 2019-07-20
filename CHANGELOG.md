@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## v0.2.1
+
+Changed
+
+- Supported new output formats in command `fetch-unread`: `markdown` and `org-mode`
+- Changed command `filter`, see `example/rules.example.yaml` for details
+
 ## v0.2.0
 
 Added

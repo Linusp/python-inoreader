@@ -8,11 +8,12 @@ import json
 import codecs
 import argparse
 from datetime import datetime
+from collections import defaultdict
 from configparser import ConfigParser
 
 import yaml
 from inoreader import InoreaderClient
-from inoreader.filter import Filter
+from inoreader.filter import get_filter
 
 
 APPID_ENV_NAME = 'INOREADER_APP_ID'
@@ -141,7 +142,7 @@ def add_unread_fetch_parser(subparsers):
     parser.add_argument("-o", "--outfile", required=True, help="Filename to save articles")
     parser.add_argument(
         "--out-format",
-        choices=['json', 'csv', 'plain'],
+        choices=['json', 'csv', 'plain', 'markdown', 'org-mode'],
         default='json',
         help='Format of output file, default: json'
     )
@@ -166,6 +167,12 @@ def fetch_unread(folder, tags, outfile, out_format):
             print('TITLE: {}'.format(title), file=fout)
             print("CONTENT: {}".format(text), file=fout)
             print(file=fout)
+        elif out_format == 'markdown':
+            print('# {}\n'.format(title), file=fout)
+            print(text + '\n', file=fout)
+        elif out_format == 'org-mode':
+            print('* {}\n'.format(title), file=fout)
+            print(text + '\n', file=fout)
 
     print("[{}] fetched {} articles and saved them in {}".format(datetime.now(), idx + 1, outfile))
 
@@ -174,13 +181,7 @@ def fetch_unread(folder, tags, outfile, out_format):
 
 def add_filter_parser(subparsers):
     parser = subparsers.add_parser('filter', help='Select articles and do something')
-    parser.add_argument("-f", "--folder", required=True, help='Folder which articles belong to')
     parser.add_argument("-r", "--rules", required=True, help='YAML file with your rules')
-    parser.add_argument("-a", "--action", default='read',
-                        choices=['read', 'like', 'tag', 'broadcast', 'star'],
-                        help='Action you want to perform, default: read')
-    parser.add_argument("-t", "--tags",
-                        help="Tag(s) to be used when action is 'tag', seprate with comma")
 
 
 def apply_action(articles, client, action, tags):
@@ -190,7 +191,7 @@ def apply_action(articles, client, action, tags):
 
         for article in articles:
             print("Add tags [{}] on article: {}".format(tags, article.title))
-    elif action == 'read':
+    elif action == 'mark_as_read':
         client.mark_as_read(articles)
         for article in articles:
             print("Mark article as read: {}".format(article.title))
@@ -208,35 +209,70 @@ def apply_action(articles, client, action, tags):
             print("Starred article: {}".format(article.title))
 
 
-def filter_articles(folder, rules_file, action, tags):
+def filter_articles(rules_file):
     client = get_client()
     filters = []
     for rule in yaml.load(open(rules_file)):
+        name = rule.get('name')
+        folders = rule['folders']
+
+        fields = []
+        # only 'title' or 'content' is supported now
+        for field in rule.get('fields', ['title', 'content']):
+            if field not in ('title', 'content'):
+                continue
+            fields.append(field)
+        cur_filter = get_filter(rule['filter'])
+
+        actions = []
+        # only 'mark_as_read', 'like', 'star', 'broadcast', 'tag' is supported now
+        for action in rule.get('actions', [{'type': 'mark_as_read'}]):
+            if action['type'] not in ('mark_as_read', 'like', 'star', 'broadcast', 'tag'):
+                continue
+            actions.append(action)
+
         filters.append({
-            'field': rule.get('field', 'title'),
-            'filter': Filter.from_config(rule),
+            'name': name,
+            'folders': folders,
+            'fields': fields,
+            'filter': cur_filter,
+            'actions': actions
         })
 
-    matched_articles = []
-    for idx, article in enumerate(client.fetch_unread(folder=folder)):
-        matched = False
-        for article_filter in filters:
-            if article_filter['field'] in ('title', 'title_or_content') and \
-               article_filter['filter'].validate(article.title):
-                matched = True
-                break
-            if article_filter['field'] in ('content', 'title_or_content') and \
-               article_filter['filter'].validate(article.text):
-                matched = True
-                break
-        if matched:
-            matched_articles.append(article)
-            if len(matched_articles) == 10:
-                apply_action(matched_articles, client, action, tags)
-                matched_articles = []
+    articles_by_foler = {}      # folder -> articles
+    matched_articles = defaultdict(list)       # action -> articles
+    for rule in filters:
+        articles = []
+        for folder in rule['folders']:
+            if folder not in articles_by_foler:
+                articles_by_foler[folder] = list(client.fetch_unread(folder=folder))
 
-    if matched_articles:
-        apply_action(matched_articles, client, action, tags)
+            articles.extend(articles_by_foler[folder])
+
+        # FIXME: deduplicate
+        count = 0
+        for article in articles:
+            matched = False
+            if 'title' in rule['fields'] and rule['filter'].validate(article.title):
+                matched = True
+            if 'content' in rule['fields'] and rule['filter'].validate(article.text):
+                matched = True
+
+            if matched:
+                for action in rule['actions']:
+                    matched_articles[action['type']].append((article, action))
+
+                count += 1
+        print("[{}] matched {} articles with filter: {}".format(
+            datetime.now(), count, rule['name']))
+
+    for action_name in matched_articles:
+        articles, actions = zip(*matched_articles[action_name])
+        if action_name != 'tag':
+            apply_action(articles, client, action_name, None)
+        else:
+            for article, action in zip(articles, actions):
+                apply_action([article], client, 'tag', action['tags'])
 
 
 def main():
@@ -263,11 +299,7 @@ def main():
     elif args.command == 'fetch-unread':
         fetch_unread(args.folder, args.tags, args.outfile, args.out_format)
     elif args.command == 'filter':
-        if args.action == 'tag' and not args.tags:
-            print("Need at least one tag when action is 'tag'!")
-            sys.exit(1)
-
-        filter_articles(args.folder, args.rules, args.action, args.tags)
+        filter_articles(args.rules)
 
 
 if __name__ == '__main__':
