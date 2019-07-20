@@ -124,7 +124,7 @@ class InoreaderClient(object):
 
         url = urljoin(BASE_URL, 'stream/contents/' + quote_plus(stream_id))
         params = {
-            'n': 50, # default 20, max 1000
+            'n': 50,            # default 20, max 1000
             'r': '',
             'c': continuation,
             'output': 'json'

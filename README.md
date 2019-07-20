@@ -1,6 +1,8 @@
 Inoreader
 =========
 
+![](https://api.travis-ci.org/Linusp/python-inoreader.png?branch=master)
+
 Python wrapper of Inoreader API.
 
 ## Installation
