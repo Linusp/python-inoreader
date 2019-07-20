@@ -1,5 +1,6 @@
 lxml
 requests
 PyYAML
+click
 flake8
 pytest
