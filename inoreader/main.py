@@ -123,18 +123,6 @@ def list_folders():
         print("{}\t{}".format(item['unread_count'], item['name']))
 
 
-def get_subscription_list():
-    client = get_client()
-    for item in client.get_subscription_list():
-        print(item.__dict__)
-
-
-def get_stream_contents(stream_id):
-    client = get_client()
-    for item in client.get_stream_contents(stream_id):
-        print(item.__dict__)
-
-
 def add_tags_list_parser(subparsers):
     subparsers.add_parser('list-tags', help="List all tags")
 

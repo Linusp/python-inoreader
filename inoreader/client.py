@@ -110,8 +110,7 @@ class InoreaderClient(object):
         for item in resp.json()['subscriptions']:
             yield Subscription.from_json(item)
 
-    def get_stream_contents(self, stream_id):
-        c = ''
+    def get_stream_contents(self, stream_id, c=''):
         while True:
             articles, c = self.__get_stream_contents(stream_id, c)
             for a in articles:
@@ -134,7 +133,10 @@ class InoreaderClient(object):
         if resp.status_code != 200:
             raise APIError(resp.text)
 
-        return resp.json()['items'], resp.json()['continuation']
+        if 'continuation' in resp.json():
+            return resp.json()['items'], resp.json()['continuation']
+        else:
+            return resp.json()['items'], None
 
     def fetch_unread(self, folder=None, tags=None):
         if not self.auth_token:
