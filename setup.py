@@ -9,6 +9,7 @@ REQS = [
     'lxml',
     'requests',
     'PyYAML',
+    'click',
 ]
 
 

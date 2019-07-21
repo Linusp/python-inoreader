@@ -6,12 +6,12 @@ import csv
 import sys
 import json
 import codecs
-import argparse
 from datetime import datetime
 from collections import defaultdict
 from configparser import ConfigParser
 
 import yaml
+import click
 from inoreader import InoreaderClient
 from inoreader.filter import get_filter
 
@@ -67,26 +67,14 @@ def get_client():
     return client
 
 
-class SubcommandHelpFormatter(argparse.RawDescriptionHelpFormatter):
-    def _format_action(self, action):
-        parts = super(argparse.RawDescriptionHelpFormatter, self)._format_action(action)
-        if action.nargs == argparse.PARSER:
-            parts = "\n".join(parts.split("\n")[1:])
-        return parts
+@click.group(context_settings=dict(help_option_names=['-h', '--help']))
+def main():
+    pass
 
 
-class CmdParser(argparse.ArgumentParser):
-    def error(self, message):
-        sys.stderr.write('error: %s\n\n' % message)
-        self.print_help()
-        sys.exit(1)
-
-
-def add_login_parser(subparsers):
-    subparsers.add_parser('login', help="Login to Inoreader")
-
-
+@main.command()
 def login():
+    """Login to your inoreader account"""
     client = InoreaderClient(None, None)
 
     username = input("EMAIL: ").strip()
@@ -112,11 +100,9 @@ def login():
         sys.exit(1)
 
 
-def add_folders_list_parser(subparsers):
-    subparsers.add_parser('list-folders', help="List all folders")
-
-
+@main.command("list-folders")
 def list_folders():
+    """List all folders"""
     client = get_client()
     res = client.get_folders()
     print("unread\tfolder")
@@ -124,31 +110,25 @@ def list_folders():
         print("{}\t{}".format(item['unread_count'], item['name']))
 
 
-def add_tags_list_parser(subparsers):
-    subparsers.add_parser('list-tags', help="List all tags")
-
-
+@main.command("list-tags")
 def list_tags():
+    """List all tags"""
     client = get_client()
     res = client.get_tags()
     for item in res:
         print("{}\t{}".format(item['unread_count'], item['name']))
 
 
-def add_unread_fetch_parser(subparsers):
-    parser = subparsers.add_parser('fetch-unread', help='Fetch unread articles')
-    parser.add_argument("-f", "--folder", required=True, help='Folder which articles belong to')
-    parser.add_argument("-t", "--tags", help="Tag(s) for filtering, seprate with comma")
-    parser.add_argument("-o", "--outfile", required=True, help="Filename to save articles")
-    parser.add_argument(
-        "--out-format",
-        choices=['json', 'csv', 'plain', 'markdown', 'org-mode'],
-        default='json',
-        help='Format of output file, default: json'
-    )
-
-
+@main.command("fetch-unread")
+@click.option("-f", "--folder", required=True, help='Folder which articles belong to')
+@click.option("-t", "--tags", help="Tag(s) for filtering, seprate with comma")
+@click.option("-o", "--outfile", required=True, help="Filename to save articles")
+@click.option("--out-format",
+              type=click.Choice(['json', 'csv', 'plain', 'markdown', 'org-mode']),
+              default='json',
+              help='Format of output file, default: json')
 def fetch_unread(folder, tags, outfile, out_format):
+    """Fetch unread articles"""
     client = get_client()
 
     tag_list = [] if not tags else tags.split(',')
@@ -179,11 +159,6 @@ def fetch_unread(folder, tags, outfile, out_format):
     fout.close()
 
 
-def add_filter_parser(subparsers):
-    parser = subparsers.add_parser('filter', help='Select articles and do something')
-    parser.add_argument("-r", "--rules", required=True, help='YAML file with your rules')
-
-
 def apply_action(articles, client, action, tags):
     if action == 'tag':
         for tag in tags.split(','):
@@ -209,7 +184,10 @@ def apply_action(articles, client, action, tags):
             print("Starred article: {}".format(article.title))
 
 
+@main.command("filter")
+@click.option("-r", "--rules-file", required=True, help='YAML file with your rules')
 def filter_articles(rules_file):
+    """Select articles and do something"""
     client = get_client()
     filters = []
     for rule in yaml.load(open(rules_file)):
@@ -275,31 +253,83 @@ def filter_articles(rules_file):
                 apply_action([article], client, 'tag', action['tags'])
 
 
-def main():
-    parser = CmdParser(
-        usage="inoreader [-h] <command> ...",
-        formatter_class=SubcommandHelpFormatter
-    )
-    subparsers = parser.add_subparsers(title="commands", dest='command')
-    subparsers.required = True
+@main.command("get-subscriptions")
+@click.option("-o", "--outfile", help="Filename to save results")
+@click.option("-f", "--folder", help='Folder which subscriptions belong to')
+@click.option("--out-format",
+              type=click.Choice(["json", "csv"]), default="csv",
+              help="Format of output, default: csv")
+def get_subscriptions(outfile, folder, out_format):
+    """Get your subscriptions"""
+    client = get_client()
+    results = []
+    for sub in client.get_subscription_list():
+        sub_categories = set([category['label'] for category in sub.categories])
+        if folder and folder not in sub_categories:
+            continue
 
-    add_login_parser(subparsers)
-    add_folders_list_parser(subparsers)
-    add_tags_list_parser(subparsers)
-    add_unread_fetch_parser(subparsers)
-    add_filter_parser(subparsers)
+        results.append({
+            'id': sub.id,
+            'title': sub.title,
+            'url': sub.url,
+            'folders': ';'.join(sub_categories),
+        })
 
-    args = parser.parse_args()
-    if args.command == 'login':
-        login()
-    elif args.command == 'list-folders':
-        list_folders()
-    elif args.command == 'list-tags':
-        list_tags()
-    elif args.command == 'fetch-unread':
-        fetch_unread(args.folder, args.tags, args.outfile, args.out_format)
-    elif args.command == 'filter':
-        filter_articles(args.rules)
+    fout = open(outfile, 'w') if outfile else sys.stdout
+    if out_format == 'csv':
+        headers = ['id', 'title', 'url', 'folders']
+        writer = csv.DictWriter(fout, headers, quoting=csv.QUOTE_ALL, delimiter="\t")
+        writer.writeheader()
+        for item in results:
+            writer.writerow(item)
+    elif out_format == 'json':
+        json.dump(results, fout, ensure_ascii=False, indent=4)
+
+    if outfile:
+        fout.close()
+
+
+@main.command("fetch-articles")
+@click.option("-i", "--stream-id", required=True, help='Stream ID which you want to fetch')
+@click.option("-o", "--outfile", required=True, help="Filename to save results")
+@click.option("--out-format",
+              type=click.Choice(["json", "csv", 'plain', 'markdown', 'org-mode']),
+              default="json",
+              help="Format of output, default: json")
+def fetch_articles(outfile, stream_id, out_format):
+    """Fetch articles by stream id"""
+    client = get_client()
+
+    fout = codecs.open(outfile, mode='w', encoding='utf-8')
+    writer = None
+    if out_format == 'csv':
+        writer = csv.DictWriter(fout, ['title', 'content'], delimiter=',', quoting=csv.QUOTE_ALL)
+        writer.writeheader()
+
+    for idx, article in enumerate(client.get_stream_contents(stream_id)):
+        if idx > 0 and (idx % 10) == 0:
+            print("[{}] fetched {} articles".format(datetime.now(), idx))
+
+        title = article.title
+        text = article.text
+        if out_format == 'json':
+            print(json.dumps({'title': title, 'content': text}, ensure_ascii=False), file=fout)
+        elif out_format == 'csv':
+            writer.writerow({'title': title, 'content': text})
+        elif out_format == 'plain':
+            print('TITLE: {}'.format(title), file=fout)
+            print("CONTENT: {}".format(text), file=fout)
+            print(file=fout)
+        elif out_format == 'markdown':
+            print('# {}\n'.format(title), file=fout)
+            print(text + '\n', file=fout)
+        elif out_format == 'org-mode':
+            print('* {}\n'.format(title), file=fout)
+            print(text + '\n', file=fout)
+
+    print("[{}] fetched {} articles and saved them in {}".format(datetime.now(), idx + 1, outfile))
+
+    fout.close()
 
 
 if __name__ == '__main__':
