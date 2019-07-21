@@ -289,5 +289,48 @@ def get_subscriptions(outfile, folder, out_format):
         fout.close()
 
 
+@main.command("fetch-articles")
+@click.option("-i", "--stream-id", required=True, help='Stream ID which you want to fetch')
+@click.option("-o", "--outfile", required=True, help="Filename to save results")
+@click.option("--out-format",
+              type=click.Choice(["json", "csv", 'plain', 'markdown', 'org-mode']),
+              default="json",
+              help="Format of output, default: json")
+def fetch_articles(outfile, stream_id, out_format):
+    """Fetch articles by stream id"""
+    client = get_client()
+
+    fout = codecs.open(outfile, mode='w', encoding='utf-8')
+    writer = None
+    if out_format == 'csv':
+        writer = csv.DictWriter(fout, ['title', 'content'], delimiter=',', quoting=csv.QUOTE_ALL)
+        writer.writeheader()
+
+    for idx, article in enumerate(client.get_stream_contents(stream_id)):
+        if idx > 0 and (idx % 10) == 0:
+            print("[{}] fetched {} articles".format(datetime.now(), idx))
+
+        title = article.title
+        text = article.text
+        if out_format == 'json':
+            print(json.dumps({'title': title, 'content': text}, ensure_ascii=False), file=fout)
+        elif out_format == 'csv':
+            writer.writerow({'title': title, 'content': text})
+        elif out_format == 'plain':
+            print('TITLE: {}'.format(title), file=fout)
+            print("CONTENT: {}".format(text), file=fout)
+            print(file=fout)
+        elif out_format == 'markdown':
+            print('# {}\n'.format(title), file=fout)
+            print(text + '\n', file=fout)
+        elif out_format == 'org-mode':
+            print('* {}\n'.format(title), file=fout)
+            print(text + '\n', file=fout)
+
+    print("[{}] fetched {} articles and saved them in {}".format(datetime.now(), idx + 1, outfile))
+
+    fout.close()
+
+
 if __name__ == '__main__':
     main()
