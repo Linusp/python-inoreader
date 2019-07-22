@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## v0.3.0
+
+Added
+
+- New Class: `Subscription` in `inoreader.subscription`
+- New methods:
+  - `InoreaderClient.get_subscription_list`
+  - `InoreaderClient.get_stream_contents`
+
+- New commands: `get-subscriptions`, `fetch-articles`, `dedupe`
+
+
+Changed
+
+- Supported new output formats in command `fetch-unread`: `markdown` and `org-mode`
+- Changed command `filter`, see `example/rules.example.yaml` for details
+- Use `logging` instead of `print` in cli
+
+
 ## v0.2.1
 
 Changed
