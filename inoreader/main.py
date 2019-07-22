@@ -6,14 +6,16 @@ import csv
 import sys
 import json
 import codecs
-from datetime import datetime
-from collections import defaultdict
+import logging
+from logging.config import dictConfig
+from collections import defaultdict, Counter
 from configparser import ConfigParser
 
 import yaml
 import click
 from inoreader import InoreaderClient
 from inoreader.filter import get_filter
+from inoreader.sim import sim_of, InvIndex
 
 
 APPID_ENV_NAME = 'INOREADER_APP_ID'
@@ -22,6 +24,37 @@ TOKEN_ENV_NAME = 'INOREADER_AUTH_TOKEN'
 ENV_NAMES = [APPID_ENV_NAME, APPKEY_ENV_NAME, TOKEN_ENV_NAME]
 
 CONFIG_FILE = os.path.join(os.environ.get('HOME'), '.inoreader')
+LOGGER = logging.getLogger(__name__)
+
+
+dictConfig({
+    'version': 1,
+    'formatters': {
+        'simple': {
+            'format': '%(asctime)s - %(filename)s:%(lineno)s: %(message)s',
+        }
+    },
+    'handlers': {
+        'default': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+            "stream": "ext://sys.stdout",
+        },
+    },
+    'loggers': {
+        '__main__': {
+            'handlers': ['default'],
+            'level': 'DEBUG',
+            'propagate': False
+        },
+        'inoreader': {
+            'handlers': ['default'],
+            'level': 'DEBUG',
+            'propagate': True
+        },
+    }
+})
 
 
 def read_config():
@@ -48,7 +81,7 @@ def get_client():
     config = read_config()
     appid, appkey = get_appid_key(config)
     if not appid or not appkey:
-        print("'appid' or 'appkey' is missing")
+        LOGGER.error("'appid' or 'appkey' is missing")
         sys.exit(1)
 
     token = None
@@ -56,7 +89,7 @@ def get_client():
         token = config.get('auth', 'token')
         token = token or os.environ.get(TOKEN_ENV_NAME)
     if not token:
-        print("Please login first")
+        LOGGER.error("Please login first")
         sys.exit(1)
 
     userid = None
@@ -81,7 +114,7 @@ def login():
     password = input("PASSWORD: ").strip()
     status = client.login(username, password)
     if status:
-        print("Login as '{}'".format(username))
+        LOGGER.info("Login as '%s'", username)
         auth_token = client.auth_token
         config = read_config()
         if 'auth' in config:
@@ -94,9 +127,9 @@ def login():
         config['user'] = {'email': username, 'id': client.userinfo()['userId']}
         with codecs.open(CONFIG_FILE, mode='w', encoding='utf-8') as fconfig:
             config.write(fconfig)
-        print("save token in {}, ".format(username, CONFIG_FILE))
+        LOGGER.info("save token in config file '%s'", CONFIG_FILE)
     else:
-        print("Login failed: Wrong username or password")
+        LOGGER.info("Login failed: Wrong username or password")
         sys.exit(1)
 
 
@@ -136,7 +169,7 @@ def fetch_unread(folder, tags, outfile, out_format):
     writer = csv.writer(fout, delimiter=',') if out_format == 'csv' else None
     for idx, article in enumerate(client.fetch_unread(folder=folder, tags=tag_list)):
         if idx > 0 and (idx % 10) == 0:
-            print("[{}] fetched {} articles".format(datetime.now(), idx))
+            LOGGER.info("fetched %d articles", idx)
         title = article.title
         text = article.text
         if out_format == 'json':
@@ -154,7 +187,7 @@ def fetch_unread(folder, tags, outfile, out_format):
             print('* {}\n'.format(title), file=fout)
             print(text + '\n', file=fout)
 
-    print("[{}] fetched {} articles and saved them in {}".format(datetime.now(), idx + 1, outfile))
+    LOGGER.info("fetched %d articles and saved them in %s", idx + 1, outfile)
 
     fout.close()
 
@@ -165,23 +198,23 @@ def apply_action(articles, client, action, tags):
             client.add_tag(articles, tag)
 
         for article in articles:
-            print("Add tags [{}] on article: {}".format(tags, article.title))
+            LOGGER.info("Add tags [%s] on article: %s", tags, article.title)
     elif action == 'mark_as_read':
         client.mark_as_read(articles)
         for article in articles:
-            print("Mark article as read: {}".format(article.title))
+            LOGGER.info("Mark article as read: %s", article.title)
     elif action == 'like':
         client.mark_as_liked(articles)
         for article in articles:
-            print("Mark article as liked: {}".format(article.title))
+            LOGGER.info("Mark article as liked: %s", article.title)
     elif action == 'broadcast':
         client.broadcast(articles)
         for article in articles:
-            print("Boradcast article: {}".format(article.title))
+            LOGGER.info("Boradcast article: {}", article.title)
     elif action == 'star':
         client.mark_as_starred(articles)
         for article in articles:
-            print("Starred article: {}".format(article.title))
+            LOGGER.info("Starred article: {}", article.title)
 
 
 @main.command("filter")
@@ -241,8 +274,11 @@ def filter_articles(rules_file):
                     matched_articles[action['type']].append((article, action))
 
                 count += 1
-        print("[{}] matched {} articles with filter: {}".format(
-            datetime.now(), count, rule['name']))
+
+        LOGGER.info(
+            "matched %d articles in folder(s) %s with filter named '%s'",
+            count, rule['folders'], rule['name']
+        )
 
     for action_name in matched_articles:
         articles, actions = zip(*matched_articles[action_name])
@@ -308,7 +344,7 @@ def fetch_articles(outfile, stream_id, out_format):
 
     for idx, article in enumerate(client.get_stream_contents(stream_id)):
         if idx > 0 and (idx % 10) == 0:
-            print("[{}] fetched {} articles".format(datetime.now(), idx))
+            LOGGER.info("fetched %d articles", idx)
 
         title = article.title
         text = article.text
@@ -327,9 +363,42 @@ def fetch_articles(outfile, stream_id, out_format):
             print('* {}\n'.format(title), file=fout)
             print(text + '\n', file=fout)
 
-    print("[{}] fetched {} articles and saved them in {}".format(datetime.now(), idx + 1, outfile))
+    LOGGER.info("fetched %d articles and saved them in %s", idx + 1, outfile)
 
     fout.close()
+
+
+@main.command()
+@click.option("-f", "--folder", help="Folder you want to deduplicate")
+@click.option("-t", "--thresh", type=float, default=0.8,
+              help="Minimum similarity score")
+def dedupe(folder, thresh):
+    """Deduplicate articles"""
+    client = get_client()
+    matched_articles, index = [], InvIndex()
+    for idx, article in enumerate(client.fetch_unread(folder=folder)):
+        if idx > 0 and (idx % 10) == 0:
+            LOGGER.info("fetched %d articles and found %d duplicate", idx, len(matched_articles))
+
+        related = index.retrieve(article.title, k=10)
+        sims = Counter()
+        for docid, doc, _ in related:
+            if docid == article.id:
+                continue
+            sims[doc] = sim_of(doc, article.title, method='cosine', term='char', ngram_range=(2, 3))
+
+        if sims and max(sims.values()) >= thresh:
+            top_doc, top_score = sims.most_common()[0]
+            print("article 「{}」 is duplicate with  -> 「{}」".format(
+                article.title, top_doc
+            ))
+            matched_articles.append(article)
+            continue
+
+        index.add_doc(article)
+
+    LOGGER.info("fetched %d articles and found %d duplicate", idx + 1, len(matched_articles))
+    apply_action(matched_articles, client, 'mark_as_read', None)
 
 
 if __name__ == '__main__':
