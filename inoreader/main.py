@@ -16,6 +16,7 @@ from collections import defaultdict, Counter
 
 import yaml
 import click
+from tabulate import tabulate
 from flask import Flask, request
 from requests_oauthlib import OAuth2Session
 
@@ -153,9 +154,12 @@ def list_folders():
     """List all folders"""
     client = get_client()
     res = client.get_folders()
-    print("unread\tfolder")
+
+    output_info = [["Folder", "Unread Count"]]
     for item in res:
-        print("{}\t{}".format(item['unread_count'], item['name']))
+        output_info.append([item['name'], item['unread_count']])
+
+    print(tabulate(output_info, headers='firstrow', tablefmt="github"))
 
 
 @main.command("list-tags")
@@ -163,8 +167,12 @@ def list_tags():
     """List all tags"""
     client = get_client()
     res = client.get_tags()
+
+    output_info = [["Tag", "Unread Count"]]
     for item in res:
-        print("{}\t{}".format(item['unread_count'], item['name']))
+        output_info.append([item['name'], item['unread_count']])
+
+    print(tabulate(output_info, headers='firstrow', tablefmt="github"))
 
 
 @main.command("fetch-unread")
