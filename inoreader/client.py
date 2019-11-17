@@ -40,7 +40,7 @@ class InoreaderClient(object):
     BROADCAST_TAG = 'user/-/state/com.google/broadcast'
 
     def __init__(self, app_id, app_key, access_token, refresh_token,
-                 expires_at, userid=None, config_manager=None):
+                 expires_at, config_manager=None):
         self.app_id = app_id
         self.app_key = app_key
         self.access_token = access_token
@@ -52,11 +52,7 @@ class InoreaderClient(object):
             'AppKey': self.app_key,
             'Authorization': 'Bearer {}'.format(self.access_token)
         })
-        self.userid = userid or self.userinfo()['userId']
         self.config_manager = config_manager
-        if self.userid and self.config_manager and not self.config_manager.user_id:
-            self.config_manager.user_id = self.userid
-            self.config_manager.save()
 
     def check_token(self):
         now = datetime.now().timestamp()
