@@ -74,7 +74,7 @@ def get_client():
 
     client = InoreaderClient(
         config.app_id, config.app_key, config.access_token, config.refresh_token,
-        config.expires_at, userid=config.user_id, config_manager=config
+        config.expires_at, config_manager=config
     )
     return client
 
