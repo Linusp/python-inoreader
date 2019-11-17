@@ -195,19 +195,30 @@ def fetch_unread(folder, tags, outfile, out_format):
             LOGGER.info("fetched %d articles", idx)
         title = article.title
         text = article.text
+        link = article.link
         if out_format == 'json':
-            print(json.dumps({'title': title, 'content': text}, ensure_ascii=False), file=fout)
+            print(json.dumps({'title': title, 'content': text, 'url': link}, ensure_ascii=False),
+                  file=fout)
         elif out_format == 'csv':
-            writer.writerow([title, text])
+            writer.writerow([link, title, text])
         elif out_format == 'plain':
             print('TITLE: {}'.format(title), file=fout)
+            print("LINK: {}".format(link), file=fout)
             print("CONTENT: {}".format(text), file=fout)
             print(file=fout)
         elif out_format == 'markdown':
-            print('# {}\n'.format(title), file=fout)
+            if link:
+                print('# [{}]({})\n'.format(title, link), file=fout)
+            else:
+                print('# {}\n'.format(title), file=fout)
             print(text + '\n', file=fout)
         elif out_format == 'org-mode':
-            print('* {}\n'.format(title), file=fout)
+            if link:
+                title = title.replace('[', '_').replace(']', '_')
+                print('* [[{}][{}]]\n'.format(link, title),
+                      file=fout)
+            else:
+                print('* {}\n'.format(title), file=fout)
             print(text + '\n', file=fout)
 
     LOGGER.info("fetched %d articles and saved them in %s", idx + 1, outfile)
