@@ -10,7 +10,7 @@ import logging
 import threading
 from queue import Queue
 from uuid import uuid4
-from functools import partial
+from functools import partial, wraps
 from logging.config import dictConfig
 from collections import defaultdict, Counter
 
@@ -23,7 +23,7 @@ from requests_oauthlib import OAuth2Session
 from inoreader import InoreaderClient
 from inoreader.filter import get_filter
 from inoreader.sim import sim_of, InvIndex
-from inoreader.exception import NotLoginError
+from inoreader.exception import NotLoginError, APIError
 from inoreader.config import InoreaderConfigManager
 from inoreader.consts import DEFAULT_APPID, DEFAULT_APPKEY
 
@@ -78,6 +78,22 @@ def get_client():
         config.expires_at, config_manager=config
     )
     return client
+
+
+def catch_error(func):
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except NotLoginError:
+            print('Error: Please login first!')
+            sys.exit(1)
+        except APIError as exception:
+            print("Error:", str(exception))
+            sys.exit(1)
+
+    return wrapper
 
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
@@ -150,6 +166,7 @@ def login():
 
 
 @main.command("list-folders")
+@catch_error
 def list_folders():
     """List all folders"""
     client = get_client()
@@ -163,6 +180,7 @@ def list_folders():
 
 
 @main.command("list-tags")
+@catch_error
 def list_tags():
     """List all tags"""
     client = get_client()
@@ -183,6 +201,7 @@ def list_tags():
               type=click.Choice(['json', 'csv', 'plain', 'markdown', 'org-mode']),
               default='json',
               help='Format of output file, default: json')
+@catch_error
 def fetch_unread(folder, tags, outfile, out_format):
     """Fetch unread articles"""
     client = get_client()
@@ -253,6 +272,7 @@ def apply_action(articles, client, action, tags):
 
 @main.command("filter")
 @click.option("-r", "--rules-file", required=True, help='YAML file with your rules')
+@catch_error
 def filter_articles(rules_file):
     """Select articles and do something"""
     client = get_client()
@@ -329,6 +349,7 @@ def filter_articles(rules_file):
 @click.option("--out-format",
               type=click.Choice(["json", "csv"]), default="csv",
               help="Format of output, default: csv")
+@catch_error
 def get_subscriptions(outfile, folder, out_format):
     """Get your subscriptions"""
     client = get_client()
@@ -366,6 +387,7 @@ def get_subscriptions(outfile, folder, out_format):
               type=click.Choice(["json", "csv", 'plain', 'markdown', 'org-mode']),
               default="json",
               help="Format of output, default: json")
+@catch_error
 def fetch_articles(outfile, stream_id, out_format):
     """Fetch articles by stream id"""
     client = get_client()
@@ -406,6 +428,7 @@ def fetch_articles(outfile, stream_id, out_format):
 @click.option("-f", "--folder", help="Folder you want to deduplicate")
 @click.option("-t", "--thresh", type=float, default=0.8,
               help="Minimum similarity score")
+@catch_error
 def dedupe(folder, thresh):
     """Deduplicate articles"""
     client = get_client()
