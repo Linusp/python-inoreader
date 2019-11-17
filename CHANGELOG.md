@@ -1,5 +1,18 @@
 # CHANGELOG
 
+
+## v0.4.0
+
+Added
+
+- New Class: `InoreaderConfigManager` for config management
+
+Changed
+
+- Use OAuth2.0 authentication instead of user authentication with password
+- Optimized code of `InoreaderClient`
+- Optimized results of commands
+
 ## v0.3.0
 
 Added
