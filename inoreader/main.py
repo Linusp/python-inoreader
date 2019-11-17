@@ -142,9 +142,9 @@ def login():
         config.refresh_token = token['refresh_token']
         config.expires_at = token['expires_at']
         config.save()
-        print("Login successfully, tokens are saved in config file %s" % config.config_file)
+        LOGGER.info("Login successfully, tokens are saved in config file %s", config.config_file)
     else:
-        print("Login failed, please check your environment or try again later.")
+        LOGGER.warning("Login failed, please check your environment or try again later.")
         sys.exit(1)
 
 
