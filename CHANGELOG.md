@@ -48,7 +48,7 @@ Added
   - `InoreaderClient.mark_as_read`
   - `InoreaderClient.mark_as_starred`
   - `InoreaderClient.mark_as_liked`
-  - `InoreaderClient.boradcast`
+  - `InoreaderClient.broadcast`
 
 - New command `filter`
 
