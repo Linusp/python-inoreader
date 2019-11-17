@@ -10,6 +10,9 @@ REQS = [
     'requests',
     'PyYAML',
     'click',
+    'requests-oauthlib',
+    'flask',
+    'tabulate',
 ]
 
 

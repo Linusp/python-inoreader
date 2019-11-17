@@ -2,5 +2,8 @@ lxml
 requests
 PyYAML
 click
+flask
+requests-oauthlib
+tabulate
 flake8
 pytest
