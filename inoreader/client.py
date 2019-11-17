@@ -1,7 +1,9 @@
 # coding: utf-8
 from __future__ import print_function, unicode_literals
 
+import logging
 from uuid import uuid4
+from datetime import datetime
 from operator import itemgetter
 try:                            # python2
     from urlparse import urljoin
@@ -11,32 +13,67 @@ except ImportError:             # python3
 
 import requests
 
-from .consts import BASE_URL, LOGIN_URL
+from .consts import BASE_URL
 from .exception import NotLoginError, APIError
 from .article import Article
 from .subscription import Subscription
 
 
+LOGGER = logging.getLogger(__name__)
+
+
 class InoreaderClient(object):
 
-    def __init__(self, app_id, app_key, userid=None, auth_token=None):
+    # paths
+    TOKEN_PATH = '/oauth2/token'
+
+    def __init__(self, app_id, app_key, access_token, refresh_token,
+                 expires_at, userid=None, config_manager=None):
         self.app_id = app_id
         self.app_key = app_key
-        self.auth_token = auth_token
+        self.access_token = access_token
+        self.refresh_token = refresh_token
+        self.expires_at = float(expires_at)
         self.session = requests.Session()
         self.session.headers.update({
             'AppId': self.app_id,
             'AppKey': self.app_key,
-            'Authorization': 'GoogleLogin auth={}'.format(self.auth_token)
+            'Authorization': 'Bearer {}'.format(self.access_token)
         })
-        if userid:
-            self.userid = userid
-        else:
-            self.userid = None if not self.auth_token else self.userinfo()['userId']
+        self.userid = userid or self.userinfo()['userId']
+        self.config_manager = config_manager
+        if self.userid and self.config_manager and not self.config_manager.user_id:
+            self.config_manager.user_id = self.userid
+            self.config_manager.save()
+
+    def check_token(self):
+        now = datetime.now().timestamp()
+        if now >= self.expires_at:
+            self.refresh_access_token()
+
+    def refresh_access_token(self):
+        url = urljoin(BASE_URL, self.TOKEN_PATH)
+        payload = {
+            'client_id': self.app_id,
+            'client_secret': self.app_key,
+            'grant_type': 'refresh_token',
+            'refresh_token': self.refresh_token,
+        }
+        resp = requests.post(url, json=payload)
+        response = resp.json()
+        self.access_token = response['access_token']
+        self.refresh_token = response['refresh_token']
+        self.expires_at = datetime.now().timestamp() + response['expires_in']
+        self.session.headers['Authorization'] = 'Bear {}'.format(self.access_token)
+
+        if self.config_manager:
+            self.config_manager.access_token = self.access_token
+            self.config_manager.refresh_token = self.refresh_token
+            self.config_manager.expires_at = self.expires_at
+            self.config_manager.save()
 
     def userinfo(self):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
         url = urljoin(BASE_URL, 'user-info')
         resp = self.session.post(url)
@@ -45,20 +82,8 @@ class InoreaderClient(object):
 
         return resp.json()
 
-    def login(self, username, password):
-        resp = self.session.get(LOGIN_URL, params={'Email': username, 'Passwd': password})
-        if resp.status_code != 200:
-            return False
-
-        for line in resp.text.split('\n'):
-            if line.startswith('Auth'):
-                self.auth_token = line.replace('Auth=', '').strip()
-
-        return bool(self.auth_token)
-
     def get_folders(self):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
         url = urljoin(BASE_URL, 'tag/list')
         params = {'types': 1, 'counts': 1}
@@ -78,8 +103,7 @@ class InoreaderClient(object):
         return folders
 
     def get_tags(self):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
         url = urljoin(BASE_URL, 'tag/list')
         params = {'types': 1, 'counts': 1}
@@ -99,8 +123,7 @@ class InoreaderClient(object):
         return tags
 
     def get_subscription_list(self):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
         url = urljoin(BASE_URL, 'subscription/list')
         resp = self.session.get(url)
@@ -119,8 +142,7 @@ class InoreaderClient(object):
                 break
 
     def __get_stream_contents(self, stream_id, continuation=''):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
         url = urljoin(BASE_URL, 'stream/contents/' + quote_plus(stream_id))
         params = {
@@ -139,8 +161,7 @@ class InoreaderClient(object):
             return resp.json()['items'], None
 
     def fetch_unread(self, folder=None, tags=None):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
         url = urljoin(BASE_URL, 'stream/contents/')
         if folder:
@@ -183,8 +204,7 @@ class InoreaderClient(object):
             continuation = resp.json().get('continuation')
 
     def add_general_label(self, articles, label):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
         url = urljoin(BASE_URL, 'edit-tag')
         for start in range(0, len(articles), 10):
