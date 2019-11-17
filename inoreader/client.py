@@ -51,6 +51,15 @@ class InoreaderClient(object):
         if now >= self.expires_at:
             self.refresh_access_token()
 
+    @staticmethod
+    def parse_response(response, json_data=True):
+        if response.status_code == 401:
+            raise NotLoginError
+        elif response.status_code != 200:
+            raise APIError(response.text)
+
+        return response.json() if json_data else response.text
+
     def refresh_access_token(self):
         url = urljoin(BASE_URL, self.TOKEN_PATH)
         payload = {
@@ -59,8 +68,7 @@ class InoreaderClient(object):
             'grant_type': 'refresh_token',
             'refresh_token': self.refresh_token,
         }
-        resp = requests.post(url, json=payload)
-        response = resp.json()
+        response = self.parse_response(requests.post(url, json=payload))
         self.access_token = response['access_token']
         self.refresh_token = response['refresh_token']
         self.expires_at = datetime.now().timestamp() + response['expires_in']
@@ -76,23 +84,17 @@ class InoreaderClient(object):
         self.check_token()
 
         url = urljoin(BASE_URL, 'user-info')
-        resp = self.session.post(url)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
-
-        return resp.json()
+        return self.parse_response(self.session.post(url))
 
     def get_folders(self):
         self.check_token()
 
         url = urljoin(BASE_URL, 'tag/list')
         params = {'types': 1, 'counts': 1}
-        resp = self.session.post(url, params=params)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
+        response = self.parse_response(self.session.post(url, params=params))
 
         folders = []
-        for item in resp.json()['tags']:
+        for item in response['tags']:
             if item.get('type') != 'folder':
                 continue
 
@@ -107,12 +109,10 @@ class InoreaderClient(object):
 
         url = urljoin(BASE_URL, 'tag/list')
         params = {'types': 1, 'counts': 1}
-        resp = self.session.post(url, params=params)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
+        response = self.parse_response(self.session.post(url, params=params))
 
         tags = []
-        for item in resp.json()['tags']:
+        for item in response['tags']:
             if item.get('type') != 'tag':
                 continue
 
@@ -126,11 +126,8 @@ class InoreaderClient(object):
         self.check_token()
 
         url = urljoin(BASE_URL, 'subscription/list')
-        resp = self.session.get(url)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
-
-        for item in resp.json()['subscriptions']:
+        response = self.parse_response(self.session.get(url))
+        for item in response['subscriptions']:
             yield Subscription.from_json(item)
 
     def get_stream_contents(self, stream_id, c=''):
@@ -151,14 +148,11 @@ class InoreaderClient(object):
             'c': continuation,
             'output': 'json'
         }
-        resp = self.session.post(url, params=params)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
-
-        if 'continuation' in resp.json():
-            return resp.json()['items'], resp.json()['continuation']
+        response = self.parse_response(self.session.post(url, params=params))
+        if 'continuation' in response():
+            return response['items'], response['continuation']
         else:
-            return resp.json()['items'], None
+            return response['items'], None
 
     def fetch_unread(self, folder=None, tags=None):
         self.check_token()
@@ -174,11 +168,8 @@ class InoreaderClient(object):
             'c': str(uuid4())
         }
 
-        resp = self.session.post(url, params=params)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
-
-        for data in resp.json()['items']:
+        response = self.parse_response(self.session.post(url, params=params))
+        for data in response['items']:
             categories = set([
                 category.split('/')[-1] for category in data.get('categories', [])
                 if category.find('label') > 0
@@ -187,13 +178,11 @@ class InoreaderClient(object):
                 continue
             yield Article.from_json(data)
 
-        continuation = resp.json().get('continuation')
+        continuation = response.get('continuation')
         while continuation:
             params['c'] = continuation
-            resp = self.session.post(url, params=params)
-            if resp.status_code != 200:
-                raise APIError(resp.text)
-            for data in resp.json()['items']:
+            response = self.parse_response(self.session.post(url, params=params))
+            for data in response['items']:
                 categories = set([
                     category.split('/')[-1] for category in data.get('categories', [])
                     if category.find('label') > 0
@@ -201,7 +190,7 @@ class InoreaderClient(object):
                 if tags and not categories.issuperset(set(tags)):
                     continue
                 yield Article.from_json(data)
-            continuation = resp.json().get('continuation')
+            continuation = response.get('continuation')
 
     def add_general_label(self, articles, label):
         self.check_token()
@@ -213,9 +202,7 @@ class InoreaderClient(object):
                 'a': label,
                 'i': [articles[idx].id for idx in range(start, end)]
             }
-            resp = self.session.post(url, params=params)
-            if resp.status_code != 200:
-                raise APIError(resp.text)
+            self.parse_response(self.session.post(url, params=params), json_data=False)
 
     def add_tag(self, articles, tag):
         self.add_general_label(articles, 'user/-/label/{}'.format(tag))
