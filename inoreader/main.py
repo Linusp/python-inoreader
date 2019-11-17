@@ -40,7 +40,7 @@ dictConfig({
     'version': 1,
     'formatters': {
         'simple': {
-            'format': '%(asctime)s - %(filename)s:%(lineno)s: %(message)s',
+            'format': '%(asctime)s - %(message)s',
         }
     },
     'handlers': {
