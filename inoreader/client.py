@@ -26,6 +26,18 @@ class InoreaderClient(object):
 
     # paths
     TOKEN_PATH = '/oauth2/token'
+    USER_INFO_PATH = 'user-info'
+    TAG_LIST_PATH = 'tag/list'
+    SUBSCRIPTION_LIST_PATH = 'subscription/list'
+    STREAM_CONTENTS_PATH = 'stream/contents/'
+    EDIT_TAG_PATH = 'edit-tag'
+
+    # tags
+    GENERAL_TAG_TEMPLATE = 'user/-/label/{}'
+    READ_TAG = 'user/-/state/com.google/read'
+    STARRED_TAG = 'user/-/state/com.google/starred'
+    LIKED_TAG = 'user/-/state/com.google/like'
+    BROADCAST_TAG = 'user/-/state/com.google/broadcast'
 
     def __init__(self, app_id, app_key, access_token, refresh_token,
                  expires_at, userid=None, config_manager=None):
@@ -83,13 +95,13 @@ class InoreaderClient(object):
     def userinfo(self):
         self.check_token()
 
-        url = urljoin(BASE_URL, 'user-info')
+        url = urljoin(BASE_URL, self.USER_INFO_PATH)
         return self.parse_response(self.session.post(url))
 
     def get_folders(self):
         self.check_token()
 
-        url = urljoin(BASE_URL, 'tag/list')
+        url = urljoin(BASE_URL, self.TAG_LIST_PATH)
         params = {'types': 1, 'counts': 1}
         response = self.parse_response(self.session.post(url, params=params))
 
@@ -107,7 +119,7 @@ class InoreaderClient(object):
     def get_tags(self):
         self.check_token()
 
-        url = urljoin(BASE_URL, 'tag/list')
+        url = urljoin(BASE_URL, self.TAG_LIST_PATH)
         params = {'types': 1, 'counts': 1}
         response = self.parse_response(self.session.post(url, params=params))
 
@@ -125,7 +137,7 @@ class InoreaderClient(object):
     def get_subscription_list(self):
         self.check_token()
 
-        url = urljoin(BASE_URL, 'subscription/list')
+        url = urljoin(BASE_URL, self.SUBSCRIPTION_LIST_PATH)
         response = self.parse_response(self.session.get(url))
         for item in response['subscriptions']:
             yield Subscription.from_json(item)
@@ -141,7 +153,7 @@ class InoreaderClient(object):
     def __get_stream_contents(self, stream_id, continuation=''):
         self.check_token()
 
-        url = urljoin(BASE_URL, 'stream/contents/' + quote_plus(stream_id))
+        url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH + quote_plus(stream_id))
         params = {
             'n': 50,            # default 20, max 1000
             'r': '',
@@ -157,16 +169,13 @@ class InoreaderClient(object):
     def fetch_unread(self, folder=None, tags=None):
         self.check_token()
 
-        url = urljoin(BASE_URL, 'stream/contents/')
+        url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH)
         if folder:
             url = urljoin(
                 url,
-                quote_plus('user/{}/label/{}'.format(self.userid, folder))
+                quote_plus(self.GENERAL_TAG_TEMPLATE.format(folder))
             )
-        params = {
-            'xt': 'user/{}/state/com.google/read'.format(self.userid),
-            'c': str(uuid4())
-        }
+        params = {'xt': self.READ_TAG, 'c': str(uuid4())}
 
         response = self.parse_response(self.session.post(url, params=params))
         for data in response['items']:
@@ -195,7 +204,7 @@ class InoreaderClient(object):
     def add_general_label(self, articles, label):
         self.check_token()
 
-        url = urljoin(BASE_URL, 'edit-tag')
+        url = urljoin(BASE_URL, self.EDIT_TAG_PATH)
         for start in range(0, len(articles), 10):
             end = min(start + 10, len(articles))
             params = {
@@ -205,16 +214,16 @@ class InoreaderClient(object):
             self.parse_response(self.session.post(url, params=params), json_data=False)
 
     def add_tag(self, articles, tag):
-        self.add_general_label(articles, 'user/-/label/{}'.format(tag))
+        self.add_general_label(articles, self.GENERAL_TAG_TEMPLATE.format(tag))
 
     def mark_as_read(self, articles):
-        self.add_general_label(articles, 'user/-/state/com.google/read')
+        self.add_general_label(articles, self.READ_TAG)
 
     def mark_as_starred(self, articles):
-        self.add_general_label(articles, 'user/-/state/com.google/starred')
+        self.add_general_label(articles, self.STARRED_TAG)
 
     def mark_as_liked(self, articles):
-        self.add_general_label(articles, 'user/-/state/com.google/like')
+        self.add_general_label(articles, self.LIKED_TAG)
 
     def broadcast(self, articles):
-        self.add_general_label(articles, 'user/-/state/com.google/broadcast')
+        self.add_general_label(articles, self.BROADCAST_TAG)
