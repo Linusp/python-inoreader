@@ -7,15 +7,25 @@ import sys
 import json
 import codecs
 import logging
+import threading
+from queue import Queue
+from uuid import uuid4
+from functools import partial, wraps
 from logging.config import dictConfig
 from collections import defaultdict, Counter
-from configparser import ConfigParser
 
 import yaml
 import click
+from tabulate import tabulate
+from flask import Flask, request
+from requests_oauthlib import OAuth2Session
+
 from inoreader import InoreaderClient
 from inoreader.filter import get_filter
 from inoreader.sim import sim_of, InvIndex
+from inoreader.exception import NotLoginError, APIError
+from inoreader.config import InoreaderConfigManager
+from inoreader.consts import DEFAULT_APPID, DEFAULT_APPKEY
 
 
 APPID_ENV_NAME = 'INOREADER_APP_ID'
@@ -31,7 +41,7 @@ dictConfig({
     'version': 1,
     'formatters': {
         'simple': {
-            'format': '%(asctime)s - %(filename)s:%(lineno)s: %(message)s',
+            'format': '%(asctime)s - %(message)s',
         }
     },
     'handlers': {
@@ -57,47 +67,33 @@ dictConfig({
 })
 
 
-def read_config():
-    config = ConfigParser()
-    if os.path.exists(CONFIG_FILE):
-        config.read(CONFIG_FILE)
-
-    return config
-
-
-def get_appid_key(config):
-    # 先尝试从配置文件中读取 appid 和 appkey
-    appid = config.get('auth', 'appid') if config.has_section('auth') else None
-    appkey = config.get('auth', 'appkey') if config.has_section('auth') else None
-    if not appid:
-        appid = os.environ.get(APPID_ENV_NAME)
-    if not appkey:
-        appkey = os.environ.get(APPKEY_ENV_NAME)
-
-    return appid, appkey
-
-
 def get_client():
-    config = read_config()
-    appid, appkey = get_appid_key(config)
-    if not appid or not appkey:
-        LOGGER.error("'appid' or 'appkey' is missing")
-        sys.exit(1)
-
-    token = None
-    if config.has_section('auth'):
-        token = config.get('auth', 'token')
-        token = token or os.environ.get(TOKEN_ENV_NAME)
-    if not token:
+    config = InoreaderConfigManager(CONFIG_FILE)
+    if not config.data:
         LOGGER.error("Please login first")
         sys.exit(1)
 
-    userid = None
-    if config.has_section('user'):
-        userid = config.get('user', 'id')
-
-    client = InoreaderClient(appid, appkey, userid=userid, auth_token=token)
+    client = InoreaderClient(
+        config.app_id, config.app_key, config.access_token, config.refresh_token,
+        config.expires_at, config_manager=config
+    )
     return client
+
+
+def catch_error(func):
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except NotLoginError:
+            print('Error: Please login first!')
+            sys.exit(1)
+        except APIError as exception:
+            print("Error:", str(exception))
+            sys.exit(1)
+
+    return wrapper
 
 
 @click.group(context_settings=dict(help_option_names=['-h', '--help']))
@@ -107,49 +103,94 @@ def main():
 
 @main.command()
 def login():
-    """Login to your inoreader account"""
-    client = InoreaderClient(None, None)
+    """Login to your inoreader account with OAuth 2.0"""
+    # run simple daemon http server to handle callback
+    app = Flask(__name__)
 
-    username = input("EMAIL: ").strip()
-    password = input("PASSWORD: ").strip()
-    status = client.login(username, password)
-    if status:
-        LOGGER.info("Login as '%s'", username)
-        auth_token = client.auth_token
-        config = read_config()
-        if 'auth' in config:
-            config['auth']['token'] = auth_token
-        else:
-            config['auth'] = {'token': auth_token}
+    # disable flask output
+    app.logger.disabled = True
+    logger = logging.getLogger('werkzeug')
+    logger.setLevel(logging.ERROR)
+    logger.disabled = True
+    sys.modules['flask.cli'].show_server_banner = lambda *x: None
 
-        appid, appkey = get_appid_key(config)
-        client = InoreaderClient(appid, appkey, auth_token=auth_token)
-        config['user'] = {'email': username, 'id': client.userinfo()['userId']}
-        with codecs.open(CONFIG_FILE, mode='w', encoding='utf-8') as fconfig:
-            config.write(fconfig)
-        LOGGER.info("save token in config file '%s'", CONFIG_FILE)
+    # use queue to pass data between threads
+    queue = Queue()
+
+    config = InoreaderConfigManager(CONFIG_FILE)
+    app_id = config.app_id or DEFAULT_APPID
+    app_key = config.app_key or DEFAULT_APPKEY
+    state = str(uuid4())
+    oauth = OAuth2Session(app_id,
+                          redirect_uri='http://localhost:8080/oauth/redirect',
+                          scope='read write',
+                          state=state)
+
+    @app.route('/oauth/redirect')
+    def redirect():
+        token = oauth.fetch_token('https://www.inoreader.com/oauth2/token',
+                                  authorization_response=request.url,
+                                  client_secret=app_key)
+        queue.put(token)
+        queue.task_done()
+        return 'Done.'
+
+    func = partial(app.run, port=8080, debug=False)
+    threading.Thread(target=func, daemon=True).start()
+
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+    authorization_url, ret_state = oauth.authorization_url('https://www.inoreader.com/oauth2/auth')
+    if state != ret_state:
+        LOGGER.error("Server return bad state")
+        sys.exit(1)
+
+    token = None
+    print('Open the link to authorize access:', authorization_url)
+    while True:
+        token = queue.get()
+        if token:
+            break
+
+    queue.join()
+    if token:
+        config.app_id = app_id
+        config.app_key = app_key
+        config.access_token = token['access_token']
+        config.refresh_token = token['refresh_token']
+        config.expires_at = token['expires_at']
+        config.save()
+        LOGGER.info("Login successfully, tokens are saved in config file %s", config.config_file)
     else:
-        LOGGER.info("Login failed: Wrong username or password")
+        LOGGER.warning("Login failed, please check your environment or try again later.")
         sys.exit(1)
 
 
 @main.command("list-folders")
+@catch_error
 def list_folders():
     """List all folders"""
     client = get_client()
     res = client.get_folders()
-    print("unread\tfolder")
+
+    output_info = [["Folder", "Unread Count"]]
     for item in res:
-        print("{}\t{}".format(item['unread_count'], item['name']))
+        output_info.append([item['name'], item['unread_count']])
+
+    print(tabulate(output_info, headers='firstrow', tablefmt="github"))
 
 
 @main.command("list-tags")
+@catch_error
 def list_tags():
     """List all tags"""
     client = get_client()
     res = client.get_tags()
+
+    output_info = [["Tag", "Unread Count"]]
     for item in res:
-        print("{}\t{}".format(item['unread_count'], item['name']))
+        output_info.append([item['name'], item['unread_count']])
+
+    print(tabulate(output_info, headers='firstrow', tablefmt="github"))
 
 
 @main.command("fetch-unread")
@@ -160,6 +201,7 @@ def list_tags():
               type=click.Choice(['json', 'csv', 'plain', 'markdown', 'org-mode']),
               default='json',
               help='Format of output file, default: json')
+@catch_error
 def fetch_unread(folder, tags, outfile, out_format):
     """Fetch unread articles"""
     client = get_client()
@@ -172,19 +214,30 @@ def fetch_unread(folder, tags, outfile, out_format):
             LOGGER.info("fetched %d articles", idx)
         title = article.title
         text = article.text
+        link = article.link
         if out_format == 'json':
-            print(json.dumps({'title': title, 'content': text}, ensure_ascii=False), file=fout)
+            print(json.dumps({'title': title, 'content': text, 'url': link}, ensure_ascii=False),
+                  file=fout)
         elif out_format == 'csv':
-            writer.writerow([title, text])
+            writer.writerow([link, title, text])
         elif out_format == 'plain':
             print('TITLE: {}'.format(title), file=fout)
+            print("LINK: {}".format(link), file=fout)
             print("CONTENT: {}".format(text), file=fout)
             print(file=fout)
         elif out_format == 'markdown':
-            print('# {}\n'.format(title), file=fout)
+            if link:
+                print('# [{}]({})\n'.format(title, link), file=fout)
+            else:
+                print('# {}\n'.format(title), file=fout)
             print(text + '\n', file=fout)
         elif out_format == 'org-mode':
-            print('* {}\n'.format(title), file=fout)
+            if link:
+                title = title.replace('[', '_').replace(']', '_')
+                print('* [[{}][{}]]\n'.format(link, title),
+                      file=fout)
+            else:
+                print('* {}\n'.format(title), file=fout)
             print(text + '\n', file=fout)
 
     LOGGER.info("fetched %d articles and saved them in %s", idx + 1, outfile)
@@ -219,6 +272,7 @@ def apply_action(articles, client, action, tags):
 
 @main.command("filter")
 @click.option("-r", "--rules-file", required=True, help='YAML file with your rules')
+@catch_error
 def filter_articles(rules_file):
     """Select articles and do something"""
     client = get_client()
@@ -295,6 +349,7 @@ def filter_articles(rules_file):
 @click.option("--out-format",
               type=click.Choice(["json", "csv"]), default="csv",
               help="Format of output, default: csv")
+@catch_error
 def get_subscriptions(outfile, folder, out_format):
     """Get your subscriptions"""
     client = get_client()
@@ -332,6 +387,7 @@ def get_subscriptions(outfile, folder, out_format):
               type=click.Choice(["json", "csv", 'plain', 'markdown', 'org-mode']),
               default="json",
               help="Format of output, default: json")
+@catch_error
 def fetch_articles(outfile, stream_id, out_format):
     """Fetch articles by stream id"""
     client = get_client()
@@ -372,6 +428,7 @@ def fetch_articles(outfile, stream_id, out_format):
 @click.option("-f", "--folder", help="Folder you want to deduplicate")
 @click.option("-t", "--thresh", type=float, default=0.8,
               help="Minimum similarity score")
+@catch_error
 def dedupe(folder, thresh):
     """Deduplicate articles"""
     client = get_client()

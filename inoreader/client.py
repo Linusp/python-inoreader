@@ -1,7 +1,9 @@
 # coding: utf-8
 from __future__ import print_function, unicode_literals
 
+import logging
 from uuid import uuid4
+from datetime import datetime
 from operator import itemgetter
 try:                            # python2
     from urlparse import urljoin
@@ -11,63 +13,96 @@ except ImportError:             # python3
 
 import requests
 
-from .consts import BASE_URL, LOGIN_URL
+from .consts import BASE_URL
 from .exception import NotLoginError, APIError
 from .article import Article
 from .subscription import Subscription
 
 
+LOGGER = logging.getLogger(__name__)
+
+
 class InoreaderClient(object):
 
-    def __init__(self, app_id, app_key, userid=None, auth_token=None):
+    # paths
+    TOKEN_PATH = '/oauth2/token'
+    USER_INFO_PATH = 'user-info'
+    TAG_LIST_PATH = 'tag/list'
+    SUBSCRIPTION_LIST_PATH = 'subscription/list'
+    STREAM_CONTENTS_PATH = 'stream/contents/'
+    EDIT_TAG_PATH = 'edit-tag'
+
+    # tags
+    GENERAL_TAG_TEMPLATE = 'user/-/label/{}'
+    READ_TAG = 'user/-/state/com.google/read'
+    STARRED_TAG = 'user/-/state/com.google/starred'
+    LIKED_TAG = 'user/-/state/com.google/like'
+    BROADCAST_TAG = 'user/-/state/com.google/broadcast'
+
+    def __init__(self, app_id, app_key, access_token, refresh_token,
+                 expires_at, config_manager=None):
         self.app_id = app_id
         self.app_key = app_key
-        self.auth_token = auth_token
+        self.access_token = access_token
+        self.refresh_token = refresh_token
+        self.expires_at = float(expires_at)
         self.session = requests.Session()
         self.session.headers.update({
             'AppId': self.app_id,
             'AppKey': self.app_key,
-            'Authorization': 'GoogleLogin auth={}'.format(self.auth_token)
+            'Authorization': 'Bearer {}'.format(self.access_token)
         })
-        if userid:
-            self.userid = userid
-        else:
-            self.userid = None if not self.auth_token else self.userinfo()['userId']
+        self.config_manager = config_manager
+
+    def check_token(self):
+        now = datetime.now().timestamp()
+        if now >= self.expires_at:
+            self.refresh_access_token()
+
+    @staticmethod
+    def parse_response(response, json_data=True):
+        if response.status_code == 401:
+            raise NotLoginError
+        elif response.status_code != 200:
+            raise APIError(response.text)
+
+        return response.json() if json_data else response.text
+
+    def refresh_access_token(self):
+        url = urljoin(BASE_URL, self.TOKEN_PATH)
+        payload = {
+            'client_id': self.app_id,
+            'client_secret': self.app_key,
+            'grant_type': 'refresh_token',
+            'refresh_token': self.refresh_token,
+        }
+        response = self.parse_response(requests.post(url, json=payload))
+        self.access_token = response['access_token']
+        self.refresh_token = response['refresh_token']
+        self.expires_at = datetime.now().timestamp() + response['expires_in']
+        self.session.headers['Authorization'] = 'Bear {}'.format(self.access_token)
+
+        if self.config_manager:
+            self.config_manager.access_token = self.access_token
+            self.config_manager.refresh_token = self.refresh_token
+            self.config_manager.expires_at = self.expires_at
+            self.config_manager.save()
 
     def userinfo(self):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
-        url = urljoin(BASE_URL, 'user-info')
-        resp = self.session.post(url)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
-
-        return resp.json()
-
-    def login(self, username, password):
-        resp = self.session.get(LOGIN_URL, params={'Email': username, 'Passwd': password})
-        if resp.status_code != 200:
-            return False
-
-        for line in resp.text.split('\n'):
-            if line.startswith('Auth'):
-                self.auth_token = line.replace('Auth=', '').strip()
-
-        return bool(self.auth_token)
+        url = urljoin(BASE_URL, self.USER_INFO_PATH)
+        return self.parse_response(self.session.post(url))
 
     def get_folders(self):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
-        url = urljoin(BASE_URL, 'tag/list')
+        url = urljoin(BASE_URL, self.TAG_LIST_PATH)
         params = {'types': 1, 'counts': 1}
-        resp = self.session.post(url, params=params)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
+        response = self.parse_response(self.session.post(url, params=params))
 
         folders = []
-        for item in resp.json()['tags']:
+        for item in response['tags']:
             if item.get('type') != 'folder':
                 continue
 
@@ -78,17 +113,14 @@ class InoreaderClient(object):
         return folders
 
     def get_tags(self):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
-        url = urljoin(BASE_URL, 'tag/list')
+        url = urljoin(BASE_URL, self.TAG_LIST_PATH)
         params = {'types': 1, 'counts': 1}
-        resp = self.session.post(url, params=params)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
+        response = self.parse_response(self.session.post(url, params=params))
 
         tags = []
-        for item in resp.json()['tags']:
+        for item in response['tags']:
             if item.get('type') != 'tag':
                 continue
 
@@ -99,15 +131,11 @@ class InoreaderClient(object):
         return tags
 
     def get_subscription_list(self):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
-        url = urljoin(BASE_URL, 'subscription/list')
-        resp = self.session.get(url)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
-
-        for item in resp.json()['subscriptions']:
+        url = urljoin(BASE_URL, self.SUBSCRIPTION_LIST_PATH)
+        response = self.parse_response(self.session.get(url))
+        for item in response['subscriptions']:
             yield Subscription.from_json(item)
 
     def get_stream_contents(self, stream_id, c=''):
@@ -119,45 +147,34 @@ class InoreaderClient(object):
                 break
 
     def __get_stream_contents(self, stream_id, continuation=''):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
-        url = urljoin(BASE_URL, 'stream/contents/' + quote_plus(stream_id))
+        url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH + quote_plus(stream_id))
         params = {
             'n': 50,            # default 20, max 1000
             'r': '',
             'c': continuation,
             'output': 'json'
         }
-        resp = self.session.post(url, params=params)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
-
-        if 'continuation' in resp.json():
-            return resp.json()['items'], resp.json()['continuation']
+        response = self.parse_response(self.session.post(url, params=params))
+        if 'continuation' in response():
+            return response['items'], response['continuation']
         else:
-            return resp.json()['items'], None
+            return response['items'], None
 
     def fetch_unread(self, folder=None, tags=None):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
-        url = urljoin(BASE_URL, 'stream/contents/')
+        url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH)
         if folder:
             url = urljoin(
                 url,
-                quote_plus('user/{}/label/{}'.format(self.userid, folder))
+                quote_plus(self.GENERAL_TAG_TEMPLATE.format(folder))
             )
-        params = {
-            'xt': 'user/{}/state/com.google/read'.format(self.userid),
-            'c': str(uuid4())
-        }
+        params = {'xt': self.READ_TAG, 'c': str(uuid4())}
 
-        resp = self.session.post(url, params=params)
-        if resp.status_code != 200:
-            raise APIError(resp.text)
-
-        for data in resp.json()['items']:
+        response = self.parse_response(self.session.post(url, params=params))
+        for data in response['items']:
             categories = set([
                 category.split('/')[-1] for category in data.get('categories', [])
                 if category.find('label') > 0
@@ -166,13 +183,11 @@ class InoreaderClient(object):
                 continue
             yield Article.from_json(data)
 
-        continuation = resp.json().get('continuation')
+        continuation = response.get('continuation')
         while continuation:
             params['c'] = continuation
-            resp = self.session.post(url, params=params)
-            if resp.status_code != 200:
-                raise APIError(resp.text)
-            for data in resp.json()['items']:
+            response = self.parse_response(self.session.post(url, params=params))
+            for data in response['items']:
                 categories = set([
                     category.split('/')[-1] for category in data.get('categories', [])
                     if category.find('label') > 0
@@ -180,34 +195,31 @@ class InoreaderClient(object):
                 if tags and not categories.issuperset(set(tags)):
                     continue
                 yield Article.from_json(data)
-            continuation = resp.json().get('continuation')
+            continuation = response.get('continuation')
 
     def add_general_label(self, articles, label):
-        if not self.auth_token:
-            raise NotLoginError
+        self.check_token()
 
-        url = urljoin(BASE_URL, 'edit-tag')
+        url = urljoin(BASE_URL, self.EDIT_TAG_PATH)
         for start in range(0, len(articles), 10):
             end = min(start + 10, len(articles))
             params = {
                 'a': label,
                 'i': [articles[idx].id for idx in range(start, end)]
             }
-            resp = self.session.post(url, params=params)
-            if resp.status_code != 200:
-                raise APIError(resp.text)
+            self.parse_response(self.session.post(url, params=params), json_data=False)
 
     def add_tag(self, articles, tag):
-        self.add_general_label(articles, 'user/-/label/{}'.format(tag))
+        self.add_general_label(articles, self.GENERAL_TAG_TEMPLATE.format(tag))
 
     def mark_as_read(self, articles):
-        self.add_general_label(articles, 'user/-/state/com.google/read')
+        self.add_general_label(articles, self.READ_TAG)
 
     def mark_as_starred(self, articles):
-        self.add_general_label(articles, 'user/-/state/com.google/starred')
+        self.add_general_label(articles, self.STARRED_TAG)
 
     def mark_as_liked(self, articles):
-        self.add_general_label(articles, 'user/-/state/com.google/like')
+        self.add_general_label(articles, self.LIKED_TAG)
 
     def broadcast(self, articles):
-        self.add_general_label(articles, 'user/-/state/com.google/broadcast')
+        self.add_general_label(articles, self.BROADCAST_TAG)
