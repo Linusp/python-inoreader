@@ -66,3 +66,11 @@ class InoreaderConfigManager():
     @expires_at.setter
     def expires_at(self, value):
         self.data.setdefault('auth', {})['expires_at'] = value
+
+    @property
+    def proxies(self):
+        return self.data.get('proxies', {})
+
+    @proxies.setter
+    def proxies(self, value):
+        self.data['proxies'] = value
