@@ -130,7 +130,8 @@ def login():
     def redirect():
         token = oauth.fetch_token('https://www.inoreader.com/oauth2/token',
                                   authorization_response=request.url,
-                                  client_secret=app_key)
+                                  client_secret=app_key,
+                                  proxies=config.proxies)
         queue.put(token)
         queue.task_done()
         return 'Done.'
