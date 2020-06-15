@@ -53,6 +53,7 @@ class InoreaderClient(object):
             'Authorization': 'Bearer {}'.format(self.access_token)
         })
         self.config_manager = config_manager
+        self.proxies = self.config_manager.proxies if config_manager else None
 
     def check_token(self):
         now = datetime.now().timestamp()
@@ -76,7 +77,7 @@ class InoreaderClient(object):
             'grant_type': 'refresh_token',
             'refresh_token': self.refresh_token,
         }
-        response = self.parse_response(requests.post(url, json=payload))
+        response = self.parse_response(requests.post(url, json=payload, proxies=self.proxies))
         self.access_token = response['access_token']
         self.refresh_token = response['refresh_token']
         self.expires_at = datetime.now().timestamp() + response['expires_in']
@@ -92,14 +93,14 @@ class InoreaderClient(object):
         self.check_token()
 
         url = urljoin(BASE_URL, self.USER_INFO_PATH)
-        return self.parse_response(self.session.post(url))
+        return self.parse_response(self.session.post(url, proxies=self.proxies))
 
     def get_folders(self):
         self.check_token()
 
         url = urljoin(BASE_URL, self.TAG_LIST_PATH)
         params = {'types': 1, 'counts': 1}
-        response = self.parse_response(self.session.post(url, params=params))
+        response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
 
         folders = []
         for item in response['tags']:
@@ -117,7 +118,7 @@ class InoreaderClient(object):
 
         url = urljoin(BASE_URL, self.TAG_LIST_PATH)
         params = {'types': 1, 'counts': 1}
-        response = self.parse_response(self.session.post(url, params=params))
+        response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
 
         tags = []
         for item in response['tags']:
@@ -134,7 +135,7 @@ class InoreaderClient(object):
         self.check_token()
 
         url = urljoin(BASE_URL, self.SUBSCRIPTION_LIST_PATH)
-        response = self.parse_response(self.session.get(url))
+        response = self.parse_response(self.session.get(url, proxies=self.proxies))
         for item in response['subscriptions']:
             yield Subscription.from_json(item)
 
@@ -156,7 +157,7 @@ class InoreaderClient(object):
             'c': continuation,
             'output': 'json'
         }
-        response = self.parse_response(self.session.post(url, params=params))
+        response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
         if 'continuation' in response():
             return response['items'], response['continuation']
         else:
@@ -173,7 +174,7 @@ class InoreaderClient(object):
             )
         params = {'xt': self.READ_TAG, 'c': str(uuid4())}
 
-        response = self.parse_response(self.session.post(url, params=params))
+        response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
         for data in response['items']:
             categories = set([
                 category.split('/')[-1] for category in data.get('categories', [])
@@ -186,7 +187,9 @@ class InoreaderClient(object):
         continuation = response.get('continuation')
         while continuation:
             params['c'] = continuation
-            response = self.parse_response(self.session.post(url, params=params))
+            response = self.parse_response(
+                self.session.post(url, params=params, proxies=self.proxies)
+            )
             for data in response['items']:
                 categories = set([
                     category.split('/')[-1] for category in data.get('categories', [])
@@ -207,7 +210,10 @@ class InoreaderClient(object):
                 'a': label,
                 'i': [articles[idx].id for idx in range(start, end)]
             }
-            self.parse_response(self.session.post(url, params=params), json_data=False)
+            self.parse_response(
+                self.session.post(url, params=params, proxies=self.proxies),
+                json_data=False
+            )
 
     def add_tag(self, articles, tag):
         self.add_general_label(articles, self.GENERAL_TAG_TEMPLATE.format(tag))
