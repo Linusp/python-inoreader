@@ -163,7 +163,7 @@ class InoreaderClient(object):
         else:
             return response['items'], None
 
-    def fetch_unread(self, folder=None, tags=None):
+    def fetch_articles(self, folder=None, tags=None, unread=True, starred=False):
         self.check_token()
 
         url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH)
@@ -172,7 +172,13 @@ class InoreaderClient(object):
                 url,
                 quote_plus(self.GENERAL_TAG_TEMPLATE.format(folder))
             )
-        params = {'xt': self.READ_TAG, 'c': str(uuid4())}
+
+        params = {'c': str(uuid4())}
+        if unread:
+            params['xt'] = self.READ_TAG
+
+        if starred:
+            params['it'] = self.STARRED_TAG
 
         response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
         for data in response['items']:
@@ -182,6 +188,7 @@ class InoreaderClient(object):
             ])
             if tags and not categories.issuperset(set(tags)):
                 continue
+
             yield Article.from_json(data)
 
         continuation = response.get('continuation')
@@ -198,7 +205,16 @@ class InoreaderClient(object):
                 if tags and not categories.issuperset(set(tags)):
                     continue
                 yield Article.from_json(data)
+
             continuation = response.get('continuation')
+
+    def fetch_unread(self, folder=None, tags=None):
+        for article in self.fetch_articles(folder=folder, tags=tags, unread=True):
+            yield article
+
+    def fetch_starred(self, folder=None, tags=None):
+        for article in self.fetch_articles(folder=folder, tags=tags, unread=False, starred=True):
+            yield article
 
     def add_general_label(self, articles, label):
         self.check_token()
