@@ -459,5 +459,60 @@ def dedupe(folder, thresh):
     apply_action(matched_articles, client, 'mark_as_read', None)
 
 
+@main.command()
+@click.option("-f", "--folder", help='Folder which articles belong to')
+@click.option("-t", "--tags", help="Tag(s) for filtering, seprate with comma")
+@click.option("-o", "--outfile", required=True, help="Filename to save articles")
+@click.option("--out-format",
+              type=click.Choice(['json', 'csv', 'plain', 'markdown', 'org-mode']),
+              default='json',
+              help='Format of output file, default: json')
+@catch_error
+def fetch_starred(folder, tags, outfile, out_format):
+    """Fetch starred articles"""
+    client = get_client()
+
+    tag_list = [] if not tags else tags.split(',')
+    fout = codecs.open(outfile, mode='w', encoding='utf-8')
+    writer = csv.writer(fout, delimiter=',') if out_format == 'csv' else None
+    for idx, article in enumerate(client.fetch_starred(folder=folder, tags=tag_list)):
+        if idx > 0 and (idx % 10) == 0:
+            LOGGER.info("fetched %d articles", idx)
+
+        title = article.title
+        text = article.text
+        link = article.link
+        if out_format == 'json':
+            print(json.dumps({'title': title, 'content': text, 'url': link}, ensure_ascii=False),
+                  file=fout)
+        elif out_format == 'csv':
+            writer.writerow([link, title, text])
+        elif out_format == 'plain':
+            print('TITLE: {}'.format(title), file=fout)
+            print("LINK: {}".format(link), file=fout)
+            print("CONTENT: {}".format(text), file=fout)
+            print(file=fout)
+        elif out_format == 'markdown':
+            if link:
+                print('# [{}]({})\n'.format(title, link), file=fout)
+            else:
+                print('# {}\n'.format(title), file=fout)
+
+            print(text + '\n', file=fout)
+        elif out_format == 'org-mode':
+            if link:
+                title = title.replace('[', '_').replace(']', '_')
+                print('* [[{}][{}]]\n'.format(link, title),
+                      file=fout)
+            else:
+                print('* {}\n'.format(title), file=fout)
+
+            print(text + '\n', file=fout)
+
+    LOGGER.info("fetched %d articles and saved them in %s", idx + 1, outfile)
+
+    fout.close()
+
+
 if __name__ == '__main__':
     main()
