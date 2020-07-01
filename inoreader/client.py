@@ -212,6 +212,10 @@ class InoreaderClient(object):
         for article in self.fetch_articles(folder=folder, tags=tags, unread=True):
             yield article
 
+    def fetch_starred(self, folder=None, tags=None):
+        for article in self.fetch_articles(folder=folder, tags=tags, unread=False, starred=True):
+            yield article
+
     def add_general_label(self, articles, label):
         self.check_token()
 
