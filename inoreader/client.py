@@ -163,7 +163,7 @@ class InoreaderClient(object):
         else:
             return response['items'], None
 
-    def fetch_articles(self, folder=None, tags=None, unread=True, starred=False):
+    def fetch_articles(self, folder=None, tags=None, unread=True, starred=False, limit=None):
         self.check_token()
 
         url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH)
@@ -180,6 +180,7 @@ class InoreaderClient(object):
         if starred:
             params['it'] = self.STARRED_TAG
 
+        fetched_count = 0
         response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
         for data in response['items']:
             categories = set([
@@ -190,8 +191,11 @@ class InoreaderClient(object):
                 continue
 
             yield Article.from_json(data)
+            fetched_count += 1
+            if limit and fetched_count >= limit:
+                break
 
-        continuation = response.get('continuation')
+        continuation = response.get('continuation') and (not limit or fetched_count < limit)
         while continuation:
             params['c'] = continuation
             response = self.parse_response(
@@ -205,14 +209,17 @@ class InoreaderClient(object):
                 if tags and not categories.issuperset(set(tags)):
                     continue
                 yield Article.from_json(data)
+                fetched_count += 1
+                if limit and fetched_count >= limit:
+                    break
 
-            continuation = response.get('continuation')
+            continuation = response.get('continuation') and (not limit or fetched_count < limit)
 
-    def fetch_unread(self, folder=None, tags=None):
+    def fetch_unread(self, folder=None, tags=None, limit=None):
         for article in self.fetch_articles(folder=folder, tags=tags, unread=True):
             yield article
 
-    def fetch_starred(self, folder=None, tags=None):
+    def fetch_starred(self, folder=None, tags=None, limit=None):
         for article in self.fetch_articles(folder=folder, tags=tags, unread=False, starred=True):
             yield article
 
