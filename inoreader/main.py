@@ -2,6 +2,7 @@
 from __future__ import print_function, unicode_literals
 
 import os
+import re
 import csv
 import sys
 import json
@@ -10,6 +11,7 @@ import logging
 import threading
 from queue import Queue
 from uuid import uuid4
+from operator import itemgetter
 from functools import partial, wraps
 from logging.config import dictConfig
 from collections import defaultdict, Counter
@@ -26,6 +28,7 @@ from inoreader.sim import sim_of, InvIndex
 from inoreader.exception import NotLoginError, APIError
 from inoreader.config import InoreaderConfigManager
 from inoreader.consts import DEFAULT_APPID, DEFAULT_APPKEY
+from inoreader.utils import download_image
 
 
 APPID_ENV_NAME = 'INOREADER_APP_ID'
@@ -459,59 +462,118 @@ def dedupe(folder, thresh):
     apply_action(matched_articles, client, 'mark_as_read', None)
 
 
-@main.command()
+@main.command("fetch-starred")
 @click.option("-f", "--folder", help='Folder which articles belong to')
 @click.option("-t", "--tags", help="Tag(s) for filtering, seprate with comma")
-@click.option("-o", "--outfile", required=True, help="Filename to save articles")
+@click.option("-o", "--outfile",
+              help="Filename to save articles, required when output format is `csv`")
+@click.option("-d", "--outdir",
+              help="Directory to save articles, required when output format is not `csv`")
+@click.option("-l", "--limit", type=int)
+@click.option("--save-image", is_flag=True)
 @click.option("--out-format",
-              type=click.Choice(['json', 'csv', 'plain', 'markdown', 'org-mode']),
+              type=click.Choice(['json', 'csv', 'markdown', 'org-mode']),
               default='json',
               help='Format of output file, default: json')
 @catch_error
-def fetch_starred(folder, tags, outfile, out_format):
+def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
     """Fetch starred articles"""
     client = get_client()
 
-    tag_list = [] if not tags else tags.split(',')
-    fout = codecs.open(outfile, mode='w', encoding='utf-8')
-    writer = csv.writer(fout, delimiter=',') if out_format == 'csv' else None
-    for idx, article in enumerate(client.fetch_starred(folder=folder, tags=tag_list)):
-        if idx > 0 and (idx % 10) == 0:
-            LOGGER.info("fetched %d articles", idx)
+    if out_format == 'csv' and not outfile:
+        click.secho("`outfile` is required!", fg="red")
+        return -1
+    elif out_format != 'csv' and not outdir:
+        click.secho("`outdir` is required!", fg="red")
+        return -1
 
+    if out_format == 'csv':
+        fout = codecs.open(outfile, mode='w', encoding='utf-8')
+        writer = csv.writer(fout, delimiter=',',
+                            quoting=csv.QUOTE_ALL) if out_format == 'csv' else None
+    elif not os.path.exists(outdir):
+        os.makedirs(outdir)
+
+    tag_list = [] if not tags else tags.split(',')
+    url_to_image = {}
+    fetched_count = 0
+    for article in client.fetch_starred(folder=folder, tags=tag_list, limit=limit):
+        if limit and fetched_count >= limit:
+            break
+
+        fetched_count += 1
         title = article.title
         text = article.text
         link = article.link
-        if out_format == 'json':
-            print(json.dumps({'title': title, 'content': text, 'url': link}, ensure_ascii=False),
-                  file=fout)
-        elif out_format == 'csv':
+        if out_format == 'csv':
             writer.writerow([link, title, text])
-        elif out_format == 'plain':
-            print('TITLE: {}'.format(title), file=fout)
-            print("LINK: {}".format(link), file=fout)
-            print("CONTENT: {}".format(text), file=fout)
-            print(file=fout)
+            continue
+
+        filename = re.sub(r'\s+', '_', title)
+        filename = re.sub(r'[\[\]\(\)（）]', '_', filename)
+        filename = re.sub(r'[“”\'"]', '', filename)
+        if out_format == 'json':
+            filename += '.json'
         elif out_format == 'markdown':
-            if link:
-                print('# [{}]({})\n'.format(title, link), file=fout)
-            else:
-                print('# {}\n'.format(title), file=fout)
-
-            print(text + '\n', file=fout)
+            filename += '.md'
         elif out_format == 'org-mode':
-            if link:
-                title = title.replace('[', '_').replace(']', '_')
-                print('* [[{}][{}]]\n'.format(link, title),
-                      file=fout)
-            else:
-                print('* {}\n'.format(title), file=fout)
+            filename += '.org'
 
-            print(text + '\n', file=fout)
+        if save_image:
+            image_contents = re.findall(r'!\[(?:[^\[\]]+)\]\((?:[^\(\)]+)\)', text)
+            for image_content in image_contents:
+                match = re.match(r'!\[(?P<alt>[^\[\]]+)\]\((?P<url>[^\(\)]+)\)', image_content)
+                image_alt, image_url = itemgetter('alt', 'url')(match.groupdict())
+                if image_url in url_to_image:
+                    text = text.replace(
+                        image_content,
+                        '![{}]({})'.format(image_alt, url_to_image[image_url])
+                    )
+                    continue
 
-    LOGGER.info("fetched %d articles and saved them in %s", idx + 1, outfile)
+                image_filename = ''
+                if not re.findall(r'[\?\!\/=\&]', image_alt):
+                    image_filename = re.sub(r'\.[a-z]+$', '', image_alt)
+                else:
+                    image_filename = str(uuid4()).replace('-', '')
 
-    fout.close()
+                return_image_file = download_image(
+                    image_url,
+                    outdir,
+                    image_filename,
+                    proxies=client.proxies
+                )
+                if return_image_file:
+                    LOGGER.info('Download image as "%s" from "%s"', return_image_file, image_url)
+                    text = text.replace(
+                        image_content,
+                        '![{}]({})'.format(image_alt, return_image_file)
+                    )
+                    url_to_image[image_url] = return_image_file
+
+        with open(os.path.join(outdir, filename), 'w') as fout:
+            if out_format == 'json':
+                json.dump(
+                    {'title': title, 'content': text, 'url': link},
+                    fout, ensure_ascii=False, indent=4
+                )
+            elif out_format == 'markdown':
+                print(title + '\n=====\n\nLINK: ' + link + '\n\n', file=fout)
+                text = re.sub(r'!\[([^\[\]]+)\]\(([^\(\)]+)\)', r'\n![\1](\2)\n', text)
+                print(text + '\n', file=fout)
+            elif out_format == 'org-mode':
+                print('#+TITLE: ' + title + '\n\nLINK: ' + link + '\n\n', file=fout)
+                text = re.sub(r'!\[([^\[\]]+)\]\(([^\(\)]+)\)', r'\n[[file:\2][\1]]\n', text)
+                text = re.sub(r'\[([^\[\]]+)\]\(([^\(\)]+)\)', r'[[\2][\1]]', text)
+                print(text + '\n', file=fout)
+
+            LOGGER.info('saved article "%s" in directory "%s"', title, outdir)
+
+    if out_format == 'csv':
+        fout.close()
+        LOGGER.info("fetched %d articles and saved them in %s", fetched_count, outfile)
+    else:
+        LOGGER.info("fetched %d articles and saved them in %s", fetched_count, outdir)
 
 
 if __name__ == '__main__':
