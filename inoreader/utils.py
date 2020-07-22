@@ -57,7 +57,7 @@ def download_image(url, path, filename, proxies=None):
     if suffix == 'svg+xml':
         suffix = 'svg'
 
-    image_filename = f'{filename}.{suffix}'
+    image_filename = filename + '.' + suffix
     with open(os.path.join(path, image_filename), 'wb') as f:
         response.raw.decode_content = True
         shutil.copyfileobj(response.raw, f)
