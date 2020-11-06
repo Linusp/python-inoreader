@@ -21,14 +21,14 @@ pip install git+https://github.com/Linusp/python-inoreader.git
 
 ## Usage
 
-1. [Register your application](https://www.inoreader.com/developers/register-app) and then create configuration file `$HOME/.inoreader`
+1. [Register your application](https://www.inoreader.com/developers/register-app). Use `http://localhost:8080/oauth/redirect` for the redirect URI and set scope to "Read and Write". Then create the configuration file `$HOME/.inoreader`
 
    An example of the configuration file:
 
    ```
    [auth]
-   appid = 'Your App ID'
-   appkey = 'Your App key'
+   appid = your_app_id
+   appkey = your_app_key
    ```
 
 2. Login to your Inoreader account
@@ -37,4 +37,9 @@ pip install git+https://github.com/Linusp/python-inoreader.git
    inoreader login
    ```
 
-2. Use the command line tool `inoreader` to do something, run `inoreader --help` for details
+2. Use the command line tool `inoreader` to do something, run `inoreader --help` for details. Or in code do:
+
+   ```python
+   from inoreader.main import get_client
+   client = get_client()
+   ```
