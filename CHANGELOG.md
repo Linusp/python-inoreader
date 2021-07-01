@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v0.4.1
+
+Changed
+
+- fix an error in `client.py`
 
 ## v0.4.0
 

@@ -158,7 +158,7 @@ class InoreaderClient(object):
             'output': 'json'
         }
         response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
-        if 'continuation' in response():
+        if 'continuation' in response:
             return response['items'], response['continuation']
         else:
             return response['items'], None
