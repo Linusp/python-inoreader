@@ -237,7 +237,22 @@ class InoreaderClient(object):
                 self.session.post(url, params=params, proxies=self.proxies),
                 json_data=False
             )
+            
+    def remove_general_label(self, articles, label):
+        self.check_token()
 
+        url = urljoin(BASE_URL, self.EDIT_TAG_PATH)
+        for start in range(0, len(articles), 10):
+            end = min(start + 10, len(articles))
+            params = {
+                'r': label,
+                'i': [articles[idx].id for idx in range(start, end)]
+            }
+            self.parse_response(
+                self.session.post(url, params=params, proxies=self.proxies),
+                json_data=False
+            )
+    
     def add_tag(self, articles, tag):
         self.add_general_label(articles, self.GENERAL_TAG_TEMPLATE.format(tag))
 
@@ -250,5 +265,17 @@ class InoreaderClient(object):
     def mark_as_liked(self, articles):
         self.add_general_label(articles, self.LIKED_TAG)
 
+    def remove_tag(self, articles, tag):
+        self.remove_general_label(articles, self.GENERAL_TAG_TEMPLATE.format(tag))
+
+    def remove_read(self, articles):
+        self.remove_general_label(articles, self.READ_TAG)
+
+    def remove_starred(self, articles):
+        self.remove_general_label(articles, self.STARRED_TAG)
+
+    def remove_liked(self, articles):
+        self.remove_general_label(articles, self.LIKED_TAG)
+        
     def broadcast(self, articles):
         self.add_general_label(articles, self.BROADCAST_TAG)
