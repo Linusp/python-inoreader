@@ -70,8 +70,8 @@ dictConfig({
 })
 
 
-def get_client():
-    config = InoreaderConfigManager(CONFIG_FILE)
+def get_client(config_file=CONFIG_FILE):
+    config = InoreaderConfigManager(config_file)
     if not config.data:
         LOGGER.error("Please login first")
         sys.exit(1)
