@@ -81,7 +81,7 @@ class InoreaderClient(object):
         self.access_token = response['access_token']
         self.refresh_token = response['refresh_token']
         self.expires_at = datetime.now().timestamp() + response['expires_in']
-        self.session.headers['Authorization'] = 'Bear {}'.format(self.access_token)
+        self.session.headers['Authorization'] = 'Bearer {}'.format(self.access_token)
 
         if self.config_manager:
             self.config_manager.access_token = self.access_token
