@@ -1,14 +1,12 @@
 # coding: utf-8
 from __future__ import print_function, unicode_literals
 
+import codecs
 import os
 from configparser import ConfigParser
 
-import codecs
 
-
-class InoreaderConfigManager():
-
+class InoreaderConfigManager:
     def __init__(self, config_file):
         self.config_file = config_file
         self.data = {}
