@@ -275,6 +275,10 @@ def apply_action(articles, client, action, tags):
         client.mark_as_starred(articles)
         for article in articles:
             LOGGER.info("Starred article: {}", article.title)
+    elif action == 'unstar':
+        client.remove_starred(articles)
+        for article in articles:
+            LOGGER.info("Unstarred article: {}", article.title)
 
 
 @main.command("filter")
