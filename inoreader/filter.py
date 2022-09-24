@@ -1,6 +1,5 @@
 import re
 
-
 _FILTERS = {}
 
 
@@ -17,7 +16,6 @@ def register_filter(name, override=False):
 
 @register_filter('include_any')
 class IncludeAnyFilter(object):
-
     def __init__(self, rules):
         self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
 
@@ -31,7 +29,6 @@ class IncludeAnyFilter(object):
 
 @register_filter('include_all')
 class IncludeAllFilter(object):
-
     def __init__(self, rules):
         self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
 
@@ -45,7 +42,6 @@ class IncludeAllFilter(object):
 
 @register_filter('exclude')
 class ExcludeFilter(object):
-
     def __init__(self, rules):
         self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
 

@@ -3,8 +3,7 @@
 
 
 class Subscription(object):
-    def __init__(self, id, title, categories,
-                 sortid, firstitemmsec, url, htmlUrl, iconUrl):
+    def __init__(self, id, title, categories, sortid, firstitemmsec, url, htmlUrl, iconUrl):
         self.id = id
         self.title = title
         self.categories = categories
@@ -24,6 +23,6 @@ class Subscription(object):
             'firstitemmsec': data['firstitemmsec'],
             'url': data['url'],
             'htmlUrl': data['htmlUrl'],
-            'iconUrl': data['iconUrl']
+            'iconUrl': data['iconUrl'],
         }
         return cls(**subscription_info)

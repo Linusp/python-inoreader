@@ -2,22 +2,23 @@
 from __future__ import print_function, unicode_literals
 
 import logging
-from uuid import uuid4
 from datetime import datetime
 from operator import itemgetter
-try:                            # python2
-    from urlparse import urljoin
+from uuid import uuid4
+
+try:  # python2
     from urllib import quote_plus
-except ImportError:             # python3
+
+    from urlparse import urljoin
+except ImportError:  # python3
     from urllib.parse import urljoin, quote_plus
 
 import requests
 
-from .consts import BASE_URL
-from .exception import NotLoginError, APIError
 from .article import Article
+from .consts import BASE_URL
+from .exception import APIError, NotLoginError
 from .subscription import Subscription
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -39,19 +40,22 @@ class InoreaderClient(object):
     LIKED_TAG = 'user/-/state/com.google/like'
     BROADCAST_TAG = 'user/-/state/com.google/broadcast'
 
-    def __init__(self, app_id, app_key, access_token, refresh_token,
-                 expires_at, config_manager=None):
+    def __init__(
+        self, app_id, app_key, access_token, refresh_token, expires_at, config_manager=None
+    ):
         self.app_id = app_id
         self.app_key = app_key
         self.access_token = access_token
         self.refresh_token = refresh_token
         self.expires_at = float(expires_at)
         self.session = requests.Session()
-        self.session.headers.update({
-            'AppId': self.app_id,
-            'AppKey': self.app_key,
-            'Authorization': 'Bearer {}'.format(self.access_token)
-        })
+        self.session.headers.update(
+            {
+                'AppId': self.app_id,
+                'AppKey': self.app_key,
+                'Authorization': 'Bearer {}'.format(self.access_token),
+            }
+        )
         self.config_manager = config_manager
         self.proxies = self.config_manager.proxies if config_manager else None
 
@@ -151,12 +155,7 @@ class InoreaderClient(object):
         self.check_token()
 
         url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH + quote_plus(stream_id))
-        params = {
-            'n': 50,            # default 20, max 1000
-            'r': '',
-            'c': continuation,
-            'output': 'json'
-        }
+        params = {'n': 50, 'r': '', 'c': continuation, 'output': 'json'}  # default 20, max 1000
         response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
         if 'continuation' in response:
             return response['items'], response['continuation']
@@ -168,10 +167,7 @@ class InoreaderClient(object):
 
         url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH)
         if folder:
-            url = urljoin(
-                url,
-                quote_plus(self.GENERAL_TAG_TEMPLATE.format(folder))
-            )
+            url = urljoin(url, quote_plus(self.GENERAL_TAG_TEMPLATE.format(folder)))
 
         params = {'c': str(uuid4())}
         if unread:
@@ -183,10 +179,13 @@ class InoreaderClient(object):
         fetched_count = 0
         response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
         for data in response['items']:
-            categories = set([
-                category.split('/')[-1] for category in data.get('categories', [])
-                if category.find('label') > 0
-            ])
+            categories = set(
+                [
+                    category.split('/')[-1]
+                    for category in data.get('categories', [])
+                    if category.find('label') > 0
+                ]
+            )
             if tags and not categories.issuperset(set(tags)):
                 continue
 
@@ -202,10 +201,13 @@ class InoreaderClient(object):
                 self.session.post(url, params=params, proxies=self.proxies)
             )
             for data in response['items']:
-                categories = set([
-                    category.split('/')[-1] for category in data.get('categories', [])
-                    if category.find('label') > 0
-                ])
+                categories = set(
+                    [
+                        category.split('/')[-1]
+                        for category in data.get('categories', [])
+                        if category.find('label') > 0
+                    ]
+                )
                 if tags and not categories.issuperset(set(tags)):
                     continue
                 yield Article.from_json(data)
@@ -229,30 +231,22 @@ class InoreaderClient(object):
         url = urljoin(BASE_URL, self.EDIT_TAG_PATH)
         for start in range(0, len(articles), 10):
             end = min(start + 10, len(articles))
-            params = {
-                'a': label,
-                'i': [articles[idx].id for idx in range(start, end)]
-            }
+            params = {'a': label, 'i': [articles[idx].id for idx in range(start, end)]}
             self.parse_response(
-                self.session.post(url, params=params, proxies=self.proxies),
-                json_data=False
+                self.session.post(url, params=params, proxies=self.proxies), json_data=False
             )
-            
+
     def remove_general_label(self, articles, label):
         self.check_token()
 
         url = urljoin(BASE_URL, self.EDIT_TAG_PATH)
         for start in range(0, len(articles), 10):
             end = min(start + 10, len(articles))
-            params = {
-                'r': label,
-                'i': [articles[idx].id for idx in range(start, end)]
-            }
+            params = {'r': label, 'i': [articles[idx].id for idx in range(start, end)]}
             self.parse_response(
-                self.session.post(url, params=params, proxies=self.proxies),
-                json_data=False
+                self.session.post(url, params=params, proxies=self.proxies), json_data=False
             )
-    
+
     def add_tag(self, articles, tag):
         self.add_general_label(articles, self.GENERAL_TAG_TEMPLATE.format(tag))
 
@@ -276,6 +270,6 @@ class InoreaderClient(object):
 
     def remove_liked(self, articles):
         self.remove_general_label(articles, self.LIKED_TAG)
-        
+
     def broadcast(self, articles):
         self.add_general_label(articles, self.BROADCAST_TAG)
