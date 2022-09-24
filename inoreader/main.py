@@ -532,8 +532,10 @@ def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
             continue
 
         filename = re.sub(r'\s+', '_', title)
-        filename = re.sub(r'[\[\]\(\)（）]', '_', filename)
+        filename = re.sub(r'[\[\]\(\)（）：:，,/|]', '_', filename)
         filename = re.sub(r'[“”\'"]', '', filename)
+        filename = re.sub(r'-+', '-', filename)
+        filename = filename[:50]
         if out_format == 'json':
             filename += '.json'
         elif out_format == 'markdown':
