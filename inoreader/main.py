@@ -287,65 +287,54 @@ def apply_action(articles, client, action, tags):
 def filter_articles(rules_file):
     """Select articles and do something"""
     client = get_client()
-    filters = []
-    for rule in yaml.load(open(rules_file)):
-        name = rule.get('name')
-        folders = rule['folders']
-
-        fields = []
-        # only 'title' or 'content' is supported now
-        for field in rule.get('fields', ['title', 'content']):
-            if field not in ('title', 'content'):
-                continue
-            fields.append(field)
+    matched_articles = defaultdict(list)
+    for rule in yaml.load(open(rules_file), Loader=yaml.Loader):
+        fields = [
+            field
+            for field in rule.get('fields', ['title', 'content'])
+            if field in ('title', 'content')
+        ]
         cur_filter = get_filter(rule['filter'])
-
         actions = []
         # only 'mark_as_read', 'like', 'star', 'broadcast', 'tag' is supported now
         for action in rule.get('actions', [{'type': 'mark_as_read'}]):
-            if action['type'] not in ('mark_as_read', 'like', 'star', 'broadcast', 'tag'):
+            if action['type'] not in (
+                'mark_as_read',
+                'like',
+                'star',
+                'broadcast',
+                'tag',
+                'unstar',
+            ):
                 continue
             actions.append(action)
 
-        filters.append(
-            {
-                'name': name,
-                'folders': folders,
-                'fields': fields,
-                'filter': cur_filter,
-                'actions': actions,
-            }
-        )
-
-    articles_by_foler = {}  # folder -> articles
-    matched_articles = defaultdict(list)  # action -> articles
-    for rule in filters:
         articles = []
-        for folder in rule['folders']:
-            if folder not in articles_by_foler:
-                articles_by_foler[folder] = list(client.fetch_unread(folder=folder))
-
-            articles.extend(articles_by_foler[folder])
+        if 'folders' in rule:
+            for folder in rule['folders']:
+                articles.extend(client.fetch_unread(folder=folder))
+        else:
+            for articles_info in rule.get('articles', []):
+                articles.extend(client.fetch_articles(**articles_info))
 
         # FIXME: deduplicate
         count = 0
         for article in articles:
             matched = False
-            if 'title' in rule['fields'] and rule['filter'].validate(article.title):
+            if 'title' in fields and cur_filter.validate(article.title):
                 matched = True
-            if 'content' in rule['fields'] and rule['filter'].validate(article.text):
+            if 'content' in fields and cur_filter.validate(article.text):
                 matched = True
 
             if matched:
-                for action in rule['actions']:
+                for action in actions:
                     matched_articles[action['type']].append((article, action))
 
                 count += 1
 
         LOGGER.info(
-            "matched %d articles in folder(s) %s with filter named '%s'",
+            "matched %d articles with filter named '%s'",
             count,
-            rule['folders'],
             rule['name'],
         )
 
