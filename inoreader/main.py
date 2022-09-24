@@ -270,15 +270,15 @@ def apply_action(articles, client, action, tags):
     elif action == 'broadcast':
         client.broadcast(articles)
         for article in articles:
-            LOGGER.info("Boradcast article: {}", article.title)
+            LOGGER.info("Boradcast article: %s", article.title)
     elif action == 'star':
         client.mark_as_starred(articles)
         for article in articles:
-            LOGGER.info("Starred article: {}", article.title)
+            LOGGER.info("Starred article: %s", article.title)
     elif action == 'unstar':
         client.remove_starred(articles)
         for article in articles:
-            LOGGER.info("Unstarred article: {}", article.title)
+            LOGGER.info("Unstarred article: %s", article.title)
 
 
 @main.command("filter")
