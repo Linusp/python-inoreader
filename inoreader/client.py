@@ -216,6 +216,51 @@ class InoreaderClient(object):
                     break
 
             continuation = response.get('continuation')
+            
+    def fetch_articles_by_tag(self, tag:str, limit=None):
+        self.check_token()
+
+        url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH)
+
+        params = {'c': str(uuid4())}
+        params['it'] = tag
+
+        fetched_count = 0
+        response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
+        for data in response['items']:
+            categories = set(
+                [
+                    category.split('/')[-1]
+                    for category in data.get('categories', [])
+                    if category.find('label') > 0
+                ]
+            )
+
+            yield Article.from_json(data)
+            fetched_count += 1
+            if limit and fetched_count >= limit:
+                break
+
+        continuation = response.get('continuation')
+        while continuation and (not limit or fetched_count < limit):
+            params['c'] = continuation
+            response = self.parse_response(
+                self.session.post(url, params=params, proxies=self.proxies)
+            )
+            for data in response['items']:
+                categories = set(
+                    [
+                        category.split('/')[-1]
+                        for category in data.get('categories', [])
+                        if category.find('label') > 0
+                    ]
+                )
+                yield Article.from_json(data)
+                fetched_count += 1
+                if limit and fetched_count >= limit:
+                    break
+
+            continuation = response.get('continuation')
 
     def fetch_unread(self, folder=None, tags=None, limit=None):
         for article in self.fetch_articles(folder=folder, tags=tags, unread=True):
