@@ -1,10 +1,70 @@
 # CHANGELOG
 
+## v0.4.6
+
+Added
+
+- New methods:
+
+  - `InoreaderClient.remove_general_label`
+  - `InoreaderClient.remove_tag`
+  - `InoreaderClient.remove_read`
+  - `InoreaderClient.remove_starred`
+  - `InoreaderClient.remove_liked`
+
+  thanks to [tianchen zhong](https://github.com/cczhong11)
+
+Changed
+
+- Add param to `inoreader.main.get_client` for customizing the config file path, thanks to [tianchen zhong](https://github.com/cczhong11)
+- Command filter supported a new action `unstar`
+
+Fixed
+
+- Fix token in refresh_access_token method, thanks to [Torikova](https://github.com/Torikova)
+
 ## v0.4.5
 
 Changed
 
-- fix an error in `client.py`
+- Fix `InoreaderClient.__get_stream_contents`, thanks to [BeautyYuYanli](https://github.com/BeautyYuYanli)
+
+## v0.4.4
+
+Changed
+
+- Disable default app id and key due to abusion
+
+## v0.4.3
+
+Fixed
+
+- Fix endless loop bug in `InoreaderClient.fetch_articles`
+
+## v0.4.2
+
+Added
+
+- New functions:
+
+  - `inoreader.utils.download_image`
+
+- New methods:
+
+  - `InoreaderClient.fetch_articles`
+  - `InoreaderClient.fetch_starred`
+
+- New command: `fetch-starred`
+
+Changed
+
+- Optimized article content parsing
+
+## v0.4.1
+
+Added
+
+- New config `proxies`
 
 ## v0.4.0
 

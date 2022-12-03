@@ -1,35 +1,34 @@
 # coding: utf-8
 from __future__ import print_function, unicode_literals
 
+import codecs
+import csv
+import json
+import logging
 import os
 import re
-import csv
 import sys
-import json
-import codecs
-import logging
 import threading
-from queue import Queue
-from uuid import uuid4
-from operator import itemgetter
+from collections import Counter, defaultdict
 from functools import partial, wraps
 from logging.config import dictConfig
-from collections import defaultdict, Counter
+from operator import itemgetter
+from queue import Queue
+from uuid import uuid4
 
-import yaml
 import click
-from tabulate import tabulate
+import yaml
 from flask import Flask, request
 from requests_oauthlib import OAuth2Session
+from tabulate import tabulate
 
 from inoreader import InoreaderClient
-from inoreader.filter import get_filter
-from inoreader.sim import sim_of, InvIndex
-from inoreader.exception import NotLoginError, APIError
 from inoreader.config import InoreaderConfigManager
 from inoreader.consts import DEFAULT_APPID, DEFAULT_APPKEY
+from inoreader.exception import APIError, NotLoginError
+from inoreader.filter import get_filter
+from inoreader.sim import InvIndex, sim_of
 from inoreader.utils import download_image
-
 
 APPID_ENV_NAME = 'INOREADER_APP_ID'
 APPKEY_ENV_NAME = 'INOREADER_APP_KEY'
@@ -40,34 +39,28 @@ CONFIG_FILE = os.path.join(os.environ.get('HOME'), '.inoreader')
 LOGGER = logging.getLogger(__name__)
 
 
-dictConfig({
-    'version': 1,
-    'formatters': {
-        'simple': {
-            'format': '%(asctime)s - %(message)s',
-        }
-    },
-    'handlers': {
-        'default': {
-            'level': 'DEBUG',
-            'class': 'logging.StreamHandler',
-            'formatter': 'simple',
-            "stream": "ext://sys.stdout",
+dictConfig(
+    {
+        'version': 1,
+        'formatters': {
+            'simple': {
+                'format': '%(asctime)s - %(message)s',
+            }
         },
-    },
-    'loggers': {
-        '__main__': {
-            'handlers': ['default'],
-            'level': 'DEBUG',
-            'propagate': False
+        'handlers': {
+            'default': {
+                'level': 'DEBUG',
+                'class': 'logging.StreamHandler',
+                'formatter': 'simple',
+                "stream": "ext://sys.stdout",
+            },
         },
-        'inoreader': {
-            'handlers': ['default'],
-            'level': 'DEBUG',
-            'propagate': True
+        'loggers': {
+            '__main__': {'handlers': ['default'], 'level': 'DEBUG', 'propagate': False},
+            'inoreader': {'handlers': ['default'], 'level': 'DEBUG', 'propagate': True},
         },
     }
-})
+)
 
 
 def get_client(config_file=CONFIG_FILE):
@@ -77,14 +70,17 @@ def get_client(config_file=CONFIG_FILE):
         sys.exit(1)
 
     client = InoreaderClient(
-        config.app_id, config.app_key, config.access_token, config.refresh_token,
-        config.expires_at, config_manager=config
+        config.app_id,
+        config.app_key,
+        config.access_token,
+        config.refresh_token,
+        config.expires_at,
+        config_manager=config,
     )
     return client
 
 
 def catch_error(func):
-
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
@@ -124,17 +120,21 @@ def login():
     app_id = config.app_id or DEFAULT_APPID
     app_key = config.app_key or DEFAULT_APPKEY
     state = str(uuid4())
-    oauth = OAuth2Session(app_id,
-                          redirect_uri='http://localhost:8080/oauth/redirect',
-                          scope='read write',
-                          state=state)
+    oauth = OAuth2Session(
+        app_id,
+        redirect_uri='http://localhost:8080/oauth/redirect',
+        scope='read write',
+        state=state,
+    )
 
     @app.route('/oauth/redirect')
     def redirect():
-        token = oauth.fetch_token('https://www.inoreader.com/oauth2/token',
-                                  authorization_response=request.url,
-                                  client_secret=app_key,
-                                  proxies=config.proxies)
+        token = oauth.fetch_token(
+            'https://www.inoreader.com/oauth2/token',
+            authorization_response=request.url,
+            client_secret=app_key,
+            proxies=config.proxies,
+        )
         queue.put(token)
         queue.task_done()
         return 'Done.'
@@ -201,10 +201,12 @@ def list_tags():
 @click.option("-f", "--folder", required=True, help='Folder which articles belong to')
 @click.option("-t", "--tags", help="Tag(s) for filtering, seprate with comma")
 @click.option("-o", "--outfile", required=True, help="Filename to save articles")
-@click.option("--out-format",
-              type=click.Choice(['json', 'csv', 'plain', 'markdown', 'org-mode']),
-              default='json',
-              help='Format of output file, default: json')
+@click.option(
+    "--out-format",
+    type=click.Choice(['json', 'csv', 'plain', 'markdown', 'org-mode']),
+    default='json',
+    help='Format of output file, default: json',
+)
 @catch_error
 def fetch_unread(folder, tags, outfile, out_format):
     """Fetch unread articles"""
@@ -220,8 +222,10 @@ def fetch_unread(folder, tags, outfile, out_format):
         text = article.text
         link = article.link
         if out_format == 'json':
-            print(json.dumps({'title': title, 'content': text, 'url': link}, ensure_ascii=False),
-                  file=fout)
+            print(
+                json.dumps({'title': title, 'content': text, 'url': link}, ensure_ascii=False),
+                file=fout,
+            )
         elif out_format == 'csv':
             writer.writerow([link, title, text])
         elif out_format == 'plain':
@@ -238,8 +242,7 @@ def fetch_unread(folder, tags, outfile, out_format):
         elif out_format == 'org-mode':
             if link:
                 title = title.replace('[', '_').replace(']', '_')
-                print('* [[{}][{}]]\n'.format(link, title),
-                      file=fout)
+                print('* [[{}][{}]]\n'.format(link, title), file=fout)
             else:
                 print('* {}\n'.format(title), file=fout)
             print(text + '\n', file=fout)
@@ -267,11 +270,15 @@ def apply_action(articles, client, action, tags):
     elif action == 'broadcast':
         client.broadcast(articles)
         for article in articles:
-            LOGGER.info("Boradcast article: {}", article.title)
+            LOGGER.info("Boradcast article: %s", article.title)
     elif action == 'star':
         client.mark_as_starred(articles)
         for article in articles:
-            LOGGER.info("Starred article: {}", article.title)
+            LOGGER.info("Starred article: %s", article.title)
+    elif action == 'unstar':
+        client.remove_starred(articles)
+        for article in articles:
+            LOGGER.info("Unstarred article: %s", article.title)
 
 
 @main.command("filter")
@@ -280,62 +287,55 @@ def apply_action(articles, client, action, tags):
 def filter_articles(rules_file):
     """Select articles and do something"""
     client = get_client()
-    filters = []
-    for rule in yaml.load(open(rules_file)):
-        name = rule.get('name')
-        folders = rule['folders']
-
-        fields = []
-        # only 'title' or 'content' is supported now
-        for field in rule.get('fields', ['title', 'content']):
-            if field not in ('title', 'content'):
-                continue
-            fields.append(field)
+    matched_articles = defaultdict(list)
+    for rule in yaml.load(open(rules_file), Loader=yaml.Loader):
+        fields = [
+            field
+            for field in rule.get('fields', ['title', 'content'])
+            if field in ('title', 'content')
+        ]
         cur_filter = get_filter(rule['filter'])
-
         actions = []
         # only 'mark_as_read', 'like', 'star', 'broadcast', 'tag' is supported now
         for action in rule.get('actions', [{'type': 'mark_as_read'}]):
-            if action['type'] not in ('mark_as_read', 'like', 'star', 'broadcast', 'tag'):
+            if action['type'] not in (
+                'mark_as_read',
+                'like',
+                'star',
+                'broadcast',
+                'tag',
+                'unstar',
+            ):
                 continue
             actions.append(action)
 
-        filters.append({
-            'name': name,
-            'folders': folders,
-            'fields': fields,
-            'filter': cur_filter,
-            'actions': actions
-        })
-
-    articles_by_foler = {}      # folder -> articles
-    matched_articles = defaultdict(list)       # action -> articles
-    for rule in filters:
         articles = []
-        for folder in rule['folders']:
-            if folder not in articles_by_foler:
-                articles_by_foler[folder] = list(client.fetch_unread(folder=folder))
-
-            articles.extend(articles_by_foler[folder])
+        if 'folders' in rule:
+            for folder in rule['folders']:
+                articles.extend(client.fetch_unread(folder=folder))
+        else:
+            for articles_info in rule.get('articles', []):
+                articles.extend(client.fetch_articles(**articles_info))
 
         # FIXME: deduplicate
         count = 0
         for article in articles:
             matched = False
-            if 'title' in rule['fields'] and rule['filter'].validate(article.title):
+            if 'title' in fields and cur_filter.validate(article.title):
                 matched = True
-            if 'content' in rule['fields'] and rule['filter'].validate(article.text):
+            if 'content' in fields and cur_filter.validate(article.text):
                 matched = True
 
             if matched:
-                for action in rule['actions']:
+                for action in actions:
                     matched_articles[action['type']].append((article, action))
 
                 count += 1
 
         LOGGER.info(
-            "matched %d articles in folder(s) %s with filter named '%s'",
-            count, rule['folders'], rule['name']
+            "matched %d articles with filter named '%s'",
+            count,
+            rule['name'],
         )
 
     for action_name in matched_articles:
@@ -350,9 +350,12 @@ def filter_articles(rules_file):
 @main.command("get-subscriptions")
 @click.option("-o", "--outfile", help="Filename to save results")
 @click.option("-f", "--folder", help='Folder which subscriptions belong to')
-@click.option("--out-format",
-              type=click.Choice(["json", "csv"]), default="csv",
-              help="Format of output, default: csv")
+@click.option(
+    "--out-format",
+    type=click.Choice(["json", "csv"]),
+    default="csv",
+    help="Format of output, default: csv",
+)
 @catch_error
 def get_subscriptions(outfile, folder, out_format):
     """Get your subscriptions"""
@@ -363,12 +366,14 @@ def get_subscriptions(outfile, folder, out_format):
         if folder and folder not in sub_categories:
             continue
 
-        results.append({
-            'id': sub.id,
-            'title': sub.title,
-            'url': sub.url,
-            'folders': ';'.join(sub_categories),
-        })
+        results.append(
+            {
+                'id': sub.id,
+                'title': sub.title,
+                'url': sub.url,
+                'folders': ';'.join(sub_categories),
+            }
+        )
 
     fout = open(outfile, 'w') if outfile else sys.stdout
     if out_format == 'csv':
@@ -387,10 +392,12 @@ def get_subscriptions(outfile, folder, out_format):
 @main.command("fetch-articles")
 @click.option("-i", "--stream-id", required=True, help='Stream ID which you want to fetch')
 @click.option("-o", "--outfile", required=True, help="Filename to save results")
-@click.option("--out-format",
-              type=click.Choice(["json", "csv", 'plain', 'markdown', 'org-mode']),
-              default="json",
-              help="Format of output, default: json")
+@click.option(
+    "--out-format",
+    type=click.Choice(["json", "csv", 'plain', 'markdown', 'org-mode']),
+    default="json",
+    help="Format of output, default: json",
+)
 @catch_error
 def fetch_articles(outfile, stream_id, out_format):
     """Fetch articles by stream id"""
@@ -430,8 +437,7 @@ def fetch_articles(outfile, stream_id, out_format):
 
 @main.command()
 @click.option("-f", "--folder", help="Folder you want to deduplicate")
-@click.option("-t", "--thresh", type=float, default=0.8,
-              help="Minimum similarity score")
+@click.option("-t", "--thresh", type=float, default=0.8, help="Minimum similarity score")
 @catch_error
 def dedupe(folder, thresh):
     """Deduplicate articles"""
@@ -446,13 +452,13 @@ def dedupe(folder, thresh):
         for docid, doc, _ in related:
             if docid == article.id:
                 continue
-            sims[doc] = sim_of(doc, article.title, method='cosine', term='char', ngram_range=(2, 3))
+            sims[doc] = sim_of(
+                doc, article.title, method='cosine', term='char', ngram_range=(2, 3)
+            )
 
         if sims and max(sims.values()) >= thresh:
             top_doc, top_score = sims.most_common()[0]
-            print("article 「{}」 is duplicate with  -> 「{}」".format(
-                article.title, top_doc
-            ))
+            print("article 「{}」 is duplicate with  -> 「{}」".format(article.title, top_doc))
             matched_articles.append(article)
             continue
 
@@ -465,16 +471,20 @@ def dedupe(folder, thresh):
 @main.command("fetch-starred")
 @click.option("-f", "--folder", help='Folder which articles belong to')
 @click.option("-t", "--tags", help="Tag(s) for filtering, seprate with comma")
-@click.option("-o", "--outfile",
-              help="Filename to save articles, required when output format is `csv`")
-@click.option("-d", "--outdir",
-              help="Directory to save articles, required when output format is not `csv`")
+@click.option(
+    "-o", "--outfile", help="Filename to save articles, required when output format is `csv`"
+)
+@click.option(
+    "-d", "--outdir", help="Directory to save articles, required when output format is not `csv`"
+)
 @click.option("-l", "--limit", type=int)
 @click.option("--save-image", is_flag=True)
-@click.option("--out-format",
-              type=click.Choice(['json', 'csv', 'markdown', 'org-mode']),
-              default='json',
-              help='Format of output file, default: json')
+@click.option(
+    "--out-format",
+    type=click.Choice(['json', 'csv', 'markdown', 'org-mode']),
+    default='json',
+    help='Format of output file, default: json',
+)
 @catch_error
 def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
     """Fetch starred articles"""
@@ -489,8 +499,9 @@ def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
 
     if out_format == 'csv':
         fout = codecs.open(outfile, mode='w', encoding='utf-8')
-        writer = csv.writer(fout, delimiter=',',
-                            quoting=csv.QUOTE_ALL) if out_format == 'csv' else None
+        writer = (
+            csv.writer(fout, delimiter=',', quoting=csv.QUOTE_ALL) if out_format == 'csv' else None
+        )
     elif not os.path.exists(outdir):
         os.makedirs(outdir)
 
@@ -510,8 +521,10 @@ def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
             continue
 
         filename = re.sub(r'\s+', '_', title)
-        filename = re.sub(r'[\[\]\(\)（）]', '_', filename)
+        filename = re.sub(r'[\[\]\(\)（）：:，,/|]', '_', filename)
         filename = re.sub(r'[“”\'"]', '', filename)
+        filename = re.sub(r'-+', '-', filename)
+        filename = filename[:50]
         if out_format == 'json':
             filename += '.json'
         elif out_format == 'markdown':
@@ -526,8 +539,7 @@ def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
                 image_alt, image_url = itemgetter('alt', 'url')(match.groupdict())
                 if image_url in url_to_image:
                     text = text.replace(
-                        image_content,
-                        '![{}]({})'.format(image_alt, url_to_image[image_url])
+                        image_content, '![{}]({})'.format(image_alt, url_to_image[image_url])
                     )
                     continue
 
@@ -538,16 +550,12 @@ def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
                     image_filename = str(uuid4()).replace('-', '')
 
                 return_image_file = download_image(
-                    image_url,
-                    outdir,
-                    image_filename,
-                    proxies=client.proxies
+                    image_url, outdir, image_filename, proxies=client.proxies
                 )
                 if return_image_file:
                     LOGGER.info('Download image as "%s" from "%s"', return_image_file, image_url)
                     text = text.replace(
-                        image_content,
-                        '![{}]({})'.format(image_alt, return_image_file)
+                        image_content, '![{}]({})'.format(image_alt, return_image_file)
                     )
                     url_to_image[image_url] = return_image_file
 
@@ -555,7 +563,9 @@ def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
             if out_format == 'json':
                 json.dump(
                     {'title': title, 'content': text, 'url': link},
-                    fout, ensure_ascii=False, indent=4
+                    fout,
+                    ensure_ascii=False,
+                    indent=4,
                 )
             elif out_format == 'markdown':
                 print(title + '\n=====\n\nLINK: ' + link + '\n\n', file=fout)

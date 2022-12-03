@@ -1,9 +1,8 @@
-import re
 import pickle
-from math import sqrt
-from collections import Counter
+import re
+from collections import Counter, defaultdict
 from difflib import SequenceMatcher
-from collections import defaultdict
+from math import sqrt
 
 PUNCTS_PAT = re.compile(
     r'(?:[#\$&@.,;:!?，。！？、：；  \u3300\'`"~_\+\-\*\/\\|\\^=<>\[\]\(\)\{\}（）“”‘’\s]|'
@@ -34,9 +33,9 @@ def make_terms(text, term, ngram_range=None, lower=True, ignore_punct=True, gram
         cur_grams = []
         for gram_level in range(min_ngram, max_ngram):
             if gram_as_tuple:
-                gram = tuple(term_seq[idx:idx + gram_level])
+                gram = tuple(term_seq[idx : idx + gram_level])
             else:
-                gram = ''.join(term_seq[idx:idx + gram_level])
+                gram = ''.join(term_seq[idx : idx + gram_level])
             if gram not in cur_grams:
                 if ignore_punct and any(PUNCTS_PAT.match(item) for item in gram):
                     pass
@@ -46,15 +45,17 @@ def make_terms(text, term, ngram_range=None, lower=True, ignore_punct=True, gram
     return terms
 
 
-def lcs_sim(s1, s2, term='char', ngram_range=None, ngram_weights=None,
-            lower=True, ignore_punct=True):
+def lcs_sim(
+    s1, s2, term='char', ngram_range=None, ngram_weights=None, lower=True, ignore_punct=True
+):
     s1_terms = make_terms(s1, 'char', None, lower, ignore_punct)
     s2_terms = make_terms(s2, 'char', None, lower, ignore_punct)
     return SequenceMatcher(a=s1_terms, b=s2_terms).ratio()
 
 
-def jaccard_sim(s1, s2, term='word', ngram_range=None, ngram_weights=None,
-                lower=True, ignore_punct=True):
+def jaccard_sim(
+    s1, s2, term='word', ngram_range=None, ngram_weights=None, lower=True, ignore_punct=True
+):
     if not ngram_range or ngram_range[1] == ngram_range[0] + 1:
         first_term_set = set(make_terms(s1, term, ngram_range, lower, ignore_punct))
         second_term_set = set(make_terms(s2, term, ngram_range, lower, ignore_punct))
@@ -67,16 +68,22 @@ def jaccard_sim(s1, s2, term='word', ngram_range=None, ngram_weights=None,
         weights = [weight / weights_sum for weight in weights]
         scores = []
         for ngram_level in range(*ngram_range):
-            score = jaccard_sim(s1, s2, term=term,
-                                ngram_range=(ngram_level, ngram_level + 1),
-                                lower=lower, ignore_punct=ignore_punct)
+            score = jaccard_sim(
+                s1,
+                s2,
+                term=term,
+                ngram_range=(ngram_level, ngram_level + 1),
+                lower=lower,
+                ignore_punct=ignore_punct,
+            )
             scores.append(score)
 
         return sum([score * weight for score, weight in zip(scores, weights)])
 
 
-def cosine_sim(s1, s2, term='word', ngram_range=None, ngram_weights=None,
-               lower=True, ignore_punct=True):
+def cosine_sim(
+    s1, s2, term='word', ngram_range=None, ngram_weights=None, lower=True, ignore_punct=True
+):
     if not ngram_range or ngram_range[1] == ngram_range[0] + 1:
         first_term_freq = Counter(make_terms(s1, term, ngram_range, lower, ignore_punct))
         second_term_freq = Counter(make_terms(s2, term, ngram_range, lower, ignore_punct))
@@ -86,11 +93,11 @@ def cosine_sim(s1, s2, term='word', ngram_range=None, ngram_weights=None,
         inner_product = 0
 
         for term, freq in first_term_freq.items():
-            first_norm += freq ** 2
+            first_norm += freq**2
             inner_product += freq * second_term_freq[term]
 
         for term, freq in second_term_freq.items():
-            second_norm += freq ** 2
+            second_norm += freq**2
 
         if first_norm == 0 and second_norm == 0:
             return 1.0
@@ -104,9 +111,14 @@ def cosine_sim(s1, s2, term='word', ngram_range=None, ngram_weights=None,
         weights = [weight / weights_sum for weight in weights]
         scores = []
         for ngram_level in range(*ngram_range):
-            score = cosine_sim(s1, s2, term=term,
-                               ngram_range=(ngram_level, ngram_level + 1),
-                               lower=lower, ignore_punct=ignore_punct)
+            score = cosine_sim(
+                s1,
+                s2,
+                term=term,
+                ngram_range=(ngram_level, ngram_level + 1),
+                lower=lower,
+                ignore_punct=ignore_punct,
+            )
             scores.append(score)
 
         return sum([score * weight for score, weight in zip(scores, weights)])
@@ -121,8 +133,9 @@ def sim_of(s1, s2, method='cosine', term='word', ngram_range=None, lower=True, i
     if not method_func:
         raise ValueError("unsupported method: {}".format(method))
 
-    return method_func(s1, s2, term=term, ngram_range=ngram_range,
-                       lower=lower, ignore_punct=ignore_punct)
+    return method_func(
+        s1, s2, term=term, ngram_range=ngram_range, lower=lower, ignore_punct=ignore_punct
+    )
 
 
 class InvIndex(object):

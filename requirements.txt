@@ -7,3 +7,5 @@ requests-oauthlib
 tabulate
 flake8
 pytest
+black
+isort

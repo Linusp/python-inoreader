@@ -1,13 +1,23 @@
 # coding: utf-8
 from __future__ import print_function, unicode_literals
 
-from .utils import normalize_whitespace, extract_text
+from .utils import extract_text, normalize_whitespace
 
 
 class Article(object):
-    def __init__(self, id, title, categories, link,
-                 published=None, content=None, author=None,
-                 feed_id=None, feed_title=None, feed_link=None):
+    def __init__(
+        self,
+        id,
+        title,
+        categories,
+        link,
+        published=None,
+        content=None,
+        author=None,
+        feed_id=None,
+        feed_title=None,
+        feed_link=None,
+    ):
         self.id = id
         self.title = normalize_whitespace(title)
         self.categories = categories
@@ -34,10 +44,12 @@ class Article(object):
         article_data['link'] = links[0] if links else ''
 
         # feed info
-        article_data.update({
-            'feed_id': data['origin']['streamId'],
-            'feed_title': normalize_whitespace(data['origin']['title']),
-            'feed_link': data['origin']['htmlUrl'],
-        })
+        article_data.update(
+            {
+                'feed_id': data['origin']['streamId'],
+                'feed_title': normalize_whitespace(data['origin']['title']),
+                'feed_link': data['origin']['htmlUrl'],
+            }
+        )
 
         return cls(**article_data)
