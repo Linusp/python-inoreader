@@ -1,0 +1,58 @@
+fail_fast: true
+repos:
+  - repo: meta
+    hooks:
+      - id: check-hooks-apply
+      - id: check-useless-excludes
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.1.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: end-of-file-fixer
+        exclude: |
+          (?x)(
+              .md$|
+              ^.gitignore|
+              ^.ipython/|
+              ^.pytest_cache/
+          )
+      - id: trailing-whitespace
+        exclude: |
+          (?x)(
+              .md$|
+              ^.ipython/|
+              ^.pytest_cache/
+          )
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+
+  - repo: https://github.com/psf/black
+    rev: 22.6.0
+    hooks:
+      - id: black
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 6.1.0
+    hooks:
+      - id: flake8
+        additional_dependencies:
+          - setuptools
+          - flake8-bugbear
+          - flake8-comprehensions
+          - flake8-debugger
+          - flake8-logging-format
+          - flake8-pytest-style
+          - flake8-tidy-imports
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.1.0
+    hooks:
+      - id: codespell
+        name: codespell
+        entry: codespell -q 3 -S "*.lock" -I codespell-ignore-words.txt --regex="[a-zA-Z0-9\-'’`]+"
+        types: [text]
