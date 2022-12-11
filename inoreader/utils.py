@@ -36,8 +36,10 @@ def extract_text(html_content):
             continue
 
         link.text = '[%s](%s)' % (text, url)
-
-    return content.text_content().replace('\xa0', '').strip()
+    try:
+        return content.text_content().replace("\xa0", "").strip()
+    except:
+        return ""
 
 
 def download_image(url, path, filename, proxies=None):

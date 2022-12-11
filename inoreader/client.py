@@ -143,13 +143,24 @@ class InoreaderClient(object):
         for item in response['subscriptions']:
             yield Subscription.from_json(item)
 
-    def get_stream_contents(self, stream_id, c=''):
-        while True:
+    def get_stream_contents(self, stream_id, c='', limit=None):
+        fetched_count = 0
+        stop = False
+        while not stop:
             articles, c = self.__get_stream_contents(stream_id, c)
             for a in articles:
-                yield Article.from_json(a)
+                try:
+                    yield Article.from_json(a)
+                    fetched_count+=1
+                except Exception as e:
+                    print(e)
+                    continue
+                if limit and fetched_count >= limit:
+                    stop = True
+                    break
             if c is None:
                 break
+            
 
     def __get_stream_contents(self, stream_id, continuation=''):
         self.check_token()
@@ -216,6 +227,7 @@ class InoreaderClient(object):
                     break
 
             continuation = response.get('continuation')
+            
 
     def fetch_unread(self, folder=None, tags=None, limit=None):
         for article in self.fetch_articles(folder=folder, tags=tags, unread=True):
