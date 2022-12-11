@@ -24,7 +24,6 @@ LOGGER = logging.getLogger(__name__)
 
 
 class InoreaderClient(object):
-
     # paths
     TOKEN_PATH = '/oauth2/token'
     USER_INFO_PATH = 'user-info'
@@ -190,13 +189,11 @@ class InoreaderClient(object):
         fetched_count = 0
         response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
         for data in response['items']:
-            categories = set(
-                [
-                    category.split('/')[-1]
-                    for category in data.get('categories', [])
-                    if category.find('label') > 0
-                ]
-            )
+            categories = {
+                category.split('/')[-1]
+                for category in data.get('categories', [])
+                if category.find('label') > 0
+            }
             if tags and not categories.issuperset(set(tags)):
                 continue
 
@@ -212,13 +209,11 @@ class InoreaderClient(object):
                 self.session.post(url, params=params, proxies=self.proxies)
             )
             for data in response['items']:
-                categories = set(
-                    [
-                        category.split('/')[-1]
-                        for category in data.get('categories', [])
-                        if category.find('label') > 0
-                    ]
-                )
+                categories = {
+                    category.split('/')[-1]
+                    for category in data.get('categories', [])
+                    if category.find('label') > 0
+                }
                 if tags and not categories.issuperset(set(tags)):
                     continue
                 yield Article.from_json(data)
@@ -305,6 +300,6 @@ class InoreaderClient(object):
         response = self.parse_response(
             r,
             # self.session.post(url, params=params, proxies=self.proxies),
-            json_data=False
+            json_data=False,
         )
         return response

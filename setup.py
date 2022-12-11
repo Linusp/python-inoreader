@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from setuptools import setup, find_packages
-
+from setuptools import find_packages, setup
 
 VERSION = '0.5.0'
 REQS = [
@@ -25,7 +24,5 @@ setup(
     install_requires=REQS,
     include_package_data=True,
     zip_safe=False,
-    entry_points={
-        'console_scripts': ['inoreader=inoreader.main:main']
-    },
+    entry_points={'console_scripts': ['inoreader=inoreader.main:main']},
 )

@@ -96,7 +96,7 @@ def cosine_sim(
             first_norm += freq**2
             inner_product += freq * second_term_freq[term]
 
-        for term, freq in second_term_freq.items():
+        for _, freq in second_term_freq.items():
             second_norm += freq**2
 
         if first_norm == 0 and second_norm == 0:

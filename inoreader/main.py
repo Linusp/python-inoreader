@@ -95,7 +95,7 @@ def catch_error(func):
     return wrapper
 
 
-@click.group(context_settings=dict(help_option_names=['-h', '--help']))
+@click.group(context_settings={'help_option_names': ['-h', '--help']})
 def main():
     pass
 
@@ -362,7 +362,7 @@ def get_subscriptions(outfile, folder, out_format):
     client = get_client()
     results = []
     for sub in client.get_subscription_list():
-        sub_categories = set([category['label'] for category in sub.categories])
+        sub_categories = {category['label'] for category in sub.categories}
         if folder and folder not in sub_categories:
             continue
 
@@ -452,9 +452,7 @@ def dedupe(folder, thresh):
         for docid, doc, _ in related:
             if docid == article.id:
                 continue
-            sims[doc] = sim_of(
-                doc, article.title, method='cosine', term='char', ngram_range=(2, 3)
-            )
+            sims[doc] = sim_of(doc, article.title, method='cosine', term='char', ngram_range=(2, 3))
 
         if sims and max(sims.values()) >= thresh:
             top_doc, top_score = sims.most_common()[0]
@@ -587,10 +585,13 @@ def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
 
 
 @main.command("edit-subscription")
-@click.option("-a", "--action",
-              required=True,
-              type=click.Choice(['follow', 'unfollow', 'rename', 'add-folder', 'remove-folder']),
-              help="")
+@click.option(
+    "-a",
+    "--action",
+    required=True,
+    type=click.Choice(['follow', 'unfollow', 'rename', 'add-folder', 'remove-folder']),
+    help="",
+)
 @click.option("-i", "--stream-id", required=True, help='Stream ID which you want to fetch')
 @click.option("-n", "--name", help='The name of subscription, for action follow/rename(required)')
 @click.option("-f", "--folder", help='Folder which subscription belong to')
@@ -616,11 +617,7 @@ def edit_subscriptions(action, stream_id, name, folder):
     remove_folder = folder if action == 'remove-folder' else None
     try:
         response = client.edit_subscription(
-            stream_id,
-            edit_action,
-            title=name,
-            add_folder=add_folder,
-            remove_folder=remove_folder
+            stream_id, edit_action, title=name, add_folder=add_folder, remove_folder=remove_folder
         )
         click.secho(response, fg="green")
     except Exception as exception:

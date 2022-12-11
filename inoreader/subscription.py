@@ -18,7 +18,7 @@ class Subscription(object):
         subscription_info = {
             'id': data['id'],
             'title': data['title'],
-            'categories': [item for item in data['categories']],
+            'categories': list(data['categories']),
             'sortid': data['sortid'],
             'firstitemmsec': data['firstitemmsec'],
             'url': data['url'],
