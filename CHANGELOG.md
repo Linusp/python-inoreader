@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## v0.5.0
+
+Added
+
+- New method: `Inoreader.edit_subscription`
+- New command `edit-subscription`, now  you can do these with this command:
+
+  - Subscribe a new feed
+  - Unsubscribe a subscription
+  - Rename a subscription
+  - Add a subscription to a folder or remove it from a folder
+
+Thanks to [Robért](https://github.com/rsguhr) for his [advice](https://github.com/Linusp/python-inoreader/issues/25).
+
 ## v0.4.6
 
 Added
