@@ -586,5 +586,47 @@ def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
         LOGGER.info("fetched %d articles and saved them in %s", fetched_count, outdir)
 
 
+@main.command("edit-subscription")
+@click.option("-a", "--action",
+              required=True,
+              type=click.Choice(['follow', 'unfollow', 'rename', 'add-folder', 'remove-folder']),
+              help="")
+@click.option("-i", "--stream-id", required=True, help='Stream ID which you want to fetch')
+@click.option("-n", "--name", help='The name of subscription, for action follow/rename(required)')
+@click.option("-f", "--folder", help='Folder which subscription belong to')
+@catch_error
+def edit_subscriptions(action, stream_id, name, folder):
+    """Get your subscriptions"""
+    edit_action = action
+    if action in ('rename', 'add-folder', 'remove-folder'):
+        edit_action = 'edit'
+        if action == 'rename' and not name:
+            click.secho("`name` is required for action `rename`!", fg="red")
+            return -1
+        elif action in ('add-folder', 'remove_starred') and not folder:
+            click.secho(f"`folder` is required for action `{action}`", fg="red")
+            return -1
+
+    client = get_client()
+    stream_id = 'feed/' + stream_id if not stream_id.startswith('feed/') else stream_id
+    if folder and not folder.startswith('user/-/label/'):
+        folder = client.GENERAL_TAG_TEMPLATE.format(folder)
+
+    add_folder = folder if action in ('follow', 'add-folder') else None
+    remove_folder = folder if action == 'remove-folder' else None
+    try:
+        response = client.edit_subscription(
+            stream_id,
+            edit_action,
+            title=name,
+            add_folder=add_folder,
+            remove_folder=remove_folder
+        )
+        click.secho(response, fg="green")
+    except Exception as exception:
+        print("Error:", str(exception))
+        return -1
+
+
 if __name__ == '__main__':
     main()
