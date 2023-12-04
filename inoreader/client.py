@@ -151,7 +151,7 @@ class InoreaderClient(object):
             for a in articles:
                 try:
                     yield Article.from_json(a)
-                    fetched_count+=1
+                    fetched_count += 1
                 except Exception as e:
                     print(e)
                     continue
@@ -160,7 +160,6 @@ class InoreaderClient(object):
                     break
             if c is None:
                 break
-            
 
     def __get_stream_contents(self, stream_id, continuation=''):
         self.check_token()
@@ -227,7 +226,6 @@ class InoreaderClient(object):
                     break
 
             continuation = response.get('continuation')
-            
 
     def fetch_unread(self, folder=None, tags=None, limit=None):
         for article in self.fetch_articles(folder=folder, tags=tags, unread=True):
