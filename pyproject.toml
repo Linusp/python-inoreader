@@ -25,3 +25,38 @@ ensure_newline_before_comments = true
 line_length = 100
 skip = [".ipython"]
 remove_redundant_aliases = true
+
+[project]
+name = "python-inoreader"
+version = "0.4.7"
+description = "Python wrapper of Inoreader API"
+authors = [
+    {name = "Linusp", email = "linusp1024@gmail.com"},
+]
+dependencies = [
+    "lxml",
+    "requests",
+    "PyYAML",
+    "click",
+    "requests-oauthlib",
+    "flask",
+    "tabulate",
+]
+requires-python = ">=3.6"
+readme = "README.md"
+license = {text = "MIT"}
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+inoreader = "inoreader.main:main"
+
+[project.urls]
+Homepage = "https://github.com/Linusp/python-inoreader"
