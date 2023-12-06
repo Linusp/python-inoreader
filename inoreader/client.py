@@ -32,6 +32,7 @@ class InoreaderClient(object):
     SUBSCRIPTION_LIST_PATH = 'subscription/list'
     STREAM_CONTENTS_PATH = 'stream/contents/'
     EDIT_TAG_PATH = 'edit-tag'
+    EDIT_SUBSCRIPTION_PATH = 'subscription/edit'
 
     # tags
     GENERAL_TAG_TEMPLATE = 'user/-/label/{}'
@@ -151,7 +152,7 @@ class InoreaderClient(object):
             for a in articles:
                 try:
                     yield Article.from_json(a)
-                    fetched_count+=1
+                    fetched_count += 1
                 except Exception as e:
                     print(e)
                     continue
@@ -160,7 +161,6 @@ class InoreaderClient(object):
                     break
             if c is None:
                 break
-            
 
     def __get_stream_contents(self, stream_id, continuation=''):
         self.check_token()
@@ -227,7 +227,6 @@ class InoreaderClient(object):
                     break
 
             continuation = response.get('continuation')
-            
 
     def fetch_unread(self, folder=None, tags=None, limit=None):
         for article in self.fetch_articles(folder=folder, tags=tags, unread=True):
@@ -285,3 +284,27 @@ class InoreaderClient(object):
 
     def broadcast(self, articles):
         self.add_general_label(articles, self.BROADCAST_TAG)
+
+    def edit_subscription(self, stream_id, action, title=None, add_folder=None, remove_folder=None):
+        self.check_token()
+        url = urljoin(BASE_URL, self.EDIT_SUBSCRIPTION_PATH)
+        # https://us.inoreader.com/developers/edit-subscription
+        # The documentation looks a bit outdated, `follow`/`unfollow` don't work
+        action = {'follow': 'subscribe', 'unfollow': 'unsubscribe'}.get(action) or action
+        params = {'ac': action, 's': stream_id}
+        if title:
+            params['t'] = title
+
+        if add_folder:
+            params['a'] = add_folder
+
+        if remove_folder:
+            params['r'] = remove_folder
+
+        r = self.session.post(url, params=params, proxies=self.proxies)
+        response = self.parse_response(
+            r,
+            # self.session.post(url, params=params, proxies=self.proxies),
+            json_data=False
+        )
+        return response

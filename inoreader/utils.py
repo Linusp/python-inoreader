@@ -38,7 +38,7 @@ def extract_text(html_content):
         link.text = '[%s](%s)' % (text, url)
     try:
         return content.text_content().replace("\xa0", "").strip()
-    except:
+    except Exception:
         return ""
 
 
