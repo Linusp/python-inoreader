@@ -199,7 +199,7 @@ def list_tags():
 
 @main.command("fetch-unread")
 @click.option("-f", "--folder", required=True, help='Folder which articles belong to')
-@click.option("-t", "--tags", help="Tag(s) for filtering, seprate with comma")
+@click.option("-t", "--tags", help="Tag(s) for filtering, separate with comma")
 @click.option("-o", "--outfile", required=True, help="Filename to save articles")
 @click.option(
     "--out-format",
@@ -270,7 +270,7 @@ def apply_action(articles, client, action, tags):
     elif action == 'broadcast':
         client.broadcast(articles)
         for article in articles:
-            LOGGER.info("Boradcast article: %s", article.title)
+            LOGGER.info("Broadcast article: %s", article.title)
     elif action == 'star':
         client.mark_as_starred(articles)
         for article in articles:
@@ -468,7 +468,7 @@ def dedupe(folder, thresh):
 
 @main.command("fetch-starred")
 @click.option("-f", "--folder", help='Folder which articles belong to')
-@click.option("-t", "--tags", help="Tag(s) for filtering, seprate with comma")
+@click.option("-t", "--tags", help="Tag(s) for filtering, separate with comma")
 @click.option(
     "-o", "--outfile", help="Filename to save articles, required when output format is `csv`"
 )
