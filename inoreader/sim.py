@@ -22,10 +22,10 @@ def make_terms(text, term, ngram_range=None, lower=True, ignore_punct=True, gram
     elif term == 'char':
         term_seq = list(re.sub(r'\s', '', text))
     else:
-        raise ValueError("unsupported term type: {}".foramt(term))
+        raise ValueError(f"unsupported term type: {term}")
 
     if ngram_range and not (len(ngram_range) == 2 and ngram_range[0] < ngram_range[1]):
-        raise ValueError("wrong `ngram_range`: {}".foramt(ngram_range))
+        raise ValueError(f"wrong `ngram_range`: {ngram_range}")
 
     terms = []
     min_ngram, max_ngram = ngram_range or (1, 2)
@@ -96,7 +96,7 @@ def cosine_sim(
             first_norm += freq**2
             inner_product += freq * second_term_freq[term]
 
-        for term, freq in second_term_freq.items():
+        for _, freq in second_term_freq.items():
             second_norm += freq**2
 
         if first_norm == 0 and second_norm == 0:
