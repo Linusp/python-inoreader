@@ -7,16 +7,10 @@ Python wrapper of Inoreader API.
 
 ## Installation
 
-1. Clone this repository and install it with `setup.py`
+Install with `pip` directly
 
 ```shell
-python setup.py install
-```
-
-2. Install with `pip` directly
-
-```shell
-pip install git+https://github.com/Linusp/python-inoreader.git
+pip install python-inoreader
 ```
 
 ## Usage

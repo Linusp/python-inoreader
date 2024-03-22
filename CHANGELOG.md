@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v0.6.0
+
+Publish to pypi!
+
 ## v0.5.0
 
 Added

@@ -1,6 +1,6 @@
 [project]
 name = "python-inoreader"
-version = "0.4.7"
+version = "0.6.0"
 description = "Python wrapper of Inoreader API"
 authors = [
     {name = "Linusp", email = "linusp1024@gmail.com"},
