@@ -14,7 +14,7 @@ def register_filter(name, override=False):
     return wrap
 
 
-@register_filter('include_any')
+@register_filter("include_any")
 class IncludeAnyFilter(object):
     def __init__(self, rules):
         self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
@@ -27,7 +27,7 @@ class IncludeAnyFilter(object):
         return False
 
 
-@register_filter('include_all')
+@register_filter("include_all")
 class IncludeAllFilter(object):
     def __init__(self, rules):
         self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
@@ -40,7 +40,7 @@ class IncludeAllFilter(object):
         return True
 
 
-@register_filter('exclude')
+@register_filter("exclude")
 class ExcludeFilter(object):
     def __init__(self, rules):
         self.rules = [re.compile(regexp, re.IGNORECASE) for regexp in rules]
@@ -54,10 +54,10 @@ class ExcludeFilter(object):
 
 
 def get_filter(config):
-    filter_type = config['type']
+    filter_type = config["type"]
     if filter_type not in _FILTERS:
         raise ValueError("unsupported filter type: {}".format(filter_type))
 
     filter_cls = _FILTERS[filter_type]
-    params = {k: v for k, v in config.items() if k != 'type'}
+    params = {k: v for k, v in config.items() if k != "type"}
     return filter_cls(**params)

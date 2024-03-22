@@ -6,21 +6,21 @@ from math import sqrt
 
 PUNCTS_PAT = re.compile(
     r'(?:[#\$&@.,;:!?，。！？、：；  \u3300\'`"~_\+\-\*\/\\|\\^=<>\[\]\(\)\{\}（）“”‘’\s]|'
-    r'[\u2000-\u206f]|'
-    r'[\u3000-\u303f]|'
-    r'[\uff30-\uff4f]|'
-    r'[\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65])+'
+    r"[\u2000-\u206f]|"
+    r"[\u3000-\u303f]|"
+    r"[\uff30-\uff4f]|"
+    r"[\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65])+"
 )
 
 
 def make_terms(text, term, ngram_range=None, lower=True, ignore_punct=True, gram_as_tuple=False):
     if lower:
         text = text.lower()
-    if term == 'word':
+    if term == "word":
         # term_seq = [word.strip() for word in jieba.cut(text) if word.strip()]
         term_seq = [word.strip() for word in text.split() if word.strip()]
-    elif term == 'char':
-        term_seq = list(re.sub(r'\s', '', text))
+    elif term == "char":
+        term_seq = list(re.sub(r"\s", "", text))
     else:
         raise ValueError(f"unsupported term type: {term}")
 
@@ -35,7 +35,7 @@ def make_terms(text, term, ngram_range=None, lower=True, ignore_punct=True, gram
             if gram_as_tuple:
                 gram = tuple(term_seq[idx : idx + gram_level])
             else:
-                gram = ''.join(term_seq[idx : idx + gram_level])
+                gram = "".join(term_seq[idx : idx + gram_level])
             if gram not in cur_grams:
                 if ignore_punct and any(PUNCTS_PAT.match(item) for item in gram):
                     pass
@@ -46,15 +46,15 @@ def make_terms(text, term, ngram_range=None, lower=True, ignore_punct=True, gram
 
 
 def lcs_sim(
-    s1, s2, term='char', ngram_range=None, ngram_weights=None, lower=True, ignore_punct=True
+    s1, s2, term="char", ngram_range=None, ngram_weights=None, lower=True, ignore_punct=True
 ):
-    s1_terms = make_terms(s1, 'char', None, lower, ignore_punct)
-    s2_terms = make_terms(s2, 'char', None, lower, ignore_punct)
+    s1_terms = make_terms(s1, "char", None, lower, ignore_punct)
+    s2_terms = make_terms(s2, "char", None, lower, ignore_punct)
     return SequenceMatcher(a=s1_terms, b=s2_terms).ratio()
 
 
 def jaccard_sim(
-    s1, s2, term='word', ngram_range=None, ngram_weights=None, lower=True, ignore_punct=True
+    s1, s2, term="word", ngram_range=None, ngram_weights=None, lower=True, ignore_punct=True
 ):
     if not ngram_range or ngram_range[1] == ngram_range[0] + 1:
         first_term_set = set(make_terms(s1, term, ngram_range, lower, ignore_punct))
@@ -82,7 +82,7 @@ def jaccard_sim(
 
 
 def cosine_sim(
-    s1, s2, term='word', ngram_range=None, ngram_weights=None, lower=True, ignore_punct=True
+    s1, s2, term="word", ngram_range=None, ngram_weights=None, lower=True, ignore_punct=True
 ):
     if not ngram_range or ngram_range[1] == ngram_range[0] + 1:
         first_term_freq = Counter(make_terms(s1, term, ngram_range, lower, ignore_punct))
@@ -124,11 +124,11 @@ def cosine_sim(
         return sum([score * weight for score, weight in zip(scores, weights)])
 
 
-def sim_of(s1, s2, method='cosine', term='word', ngram_range=None, lower=True, ignore_punct=True):
+def sim_of(s1, s2, method="cosine", term="word", ngram_range=None, lower=True, ignore_punct=True):
     method_func = {
-        'lcs': lcs_sim,
-        'jaccard': jaccard_sim,
-        'cosine': cosine_sim,
+        "lcs": lcs_sim,
+        "jaccard": jaccard_sim,
+        "cosine": cosine_sim,
     }.get(method)
     if not method_func:
         raise ValueError("unsupported method: {}".format(method))
@@ -149,7 +149,7 @@ class InvIndex(object):
             return False
 
         self._id2doc[doc.id] = doc.title
-        terms = set(make_terms(doc.title, 'char', (3, 4)))
+        terms = set(make_terms(doc.title, "char", (3, 4)))
         for term in terms:
             self._index[term].add(doc.id)
 
@@ -157,7 +157,7 @@ class InvIndex(object):
 
     def retrieve(self, query, k=10):
         related = Counter()
-        terms = set(make_terms(query, 'char', (3, 4)))
+        terms = set(make_terms(query, "char", (3, 4)))
         for term in terms:
             for qid in self._index.get(term, []):
                 related[qid] += 1
@@ -165,7 +165,7 @@ class InvIndex(object):
         return [(idx, self._id2doc[idx], score) for idx, score in related.most_common(k)]
 
     def save(self, fname):
-        pickle.dump((self._id2doc, self._index), open(fname, 'wb'))
+        pickle.dump((self._id2doc, self._index), open(fname, "wb"))
 
     def load(self, fname):
-        self._id2doc, self._index = pickle.load(open(fname, 'rb'))
+        self._id2doc, self._index = pickle.load(open(fname, "rb"))

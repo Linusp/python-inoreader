@@ -23,7 +23,7 @@ class Article(object):
         self.categories = categories
         self.link = link
         self.published = published
-        self.content = content.strip() if content else ''
+        self.content = content.strip() if content else ""
         self.text = extract_text(self.content)
         self.author = author
         self.feed_id = feed_id
@@ -33,22 +33,22 @@ class Article(object):
     @classmethod
     def from_json(cls, data):
         article_data = {
-            'id': data['id'],
-            'title': data['title'],
-            'categories': data['categories'],
-            'published': data['published'],
-            'content': data.get('summary', {}).get('content'),
-            'author': data.get('author'),
+            "id": data["id"],
+            "title": data["title"],
+            "categories": data["categories"],
+            "published": data["published"],
+            "content": data.get("summary", {}).get("content"),
+            "author": data.get("author"),
         }
-        links = [item['href'] for item in data['canonical']]
-        article_data['link'] = links[0] if links else ''
+        links = [item["href"] for item in data["canonical"]]
+        article_data["link"] = links[0] if links else ""
 
         # feed info
         article_data.update(
             {
-                'feed_id': data['origin']['streamId'],
-                'feed_title': normalize_whitespace(data['origin']['title']),
-                'feed_link': data['origin']['htmlUrl'],
+                "feed_id": data["origin"]["streamId"],
+                "feed_title": normalize_whitespace(data["origin"]["title"]),
+                "feed_link": data["origin"]["htmlUrl"],
             }
         )
 
