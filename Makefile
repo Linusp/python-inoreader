@@ -1,5 +1,11 @@
 lint: clean
-	flake8 inoreader --format=pylint
+	- pip install ruff codespell -q
+	- ruff check inoreader/
+	- codespell
+
+format:
+	- pip install ruff -q
+	- ruff format inoreader/
 
 clean:
 	- find . -iname "*__pycache__" | xargs rm -rf
