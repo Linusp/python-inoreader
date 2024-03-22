@@ -1,27 +1,76 @@
-[tool.black]
-line-length = 100
-skip-string-normalization = true
-extend-exclude = '''
-/(
-  # exclude migrations
-  | migrations
-)/
-'''
-
-[tool.coverage.report]
-exclude_lines = [
-  "pragma: no cover",
-  "def __repr__",
-  "if typing.TYPE_CHECKING:",
-  "if TYPE_CHECKING:",
+[project]
+name = "python-inoreader"
+version = "0.4.7"
+description = "Python wrapper of Inoreader API"
+authors = [
+    {name = "Linusp", email = "linusp1024@gmail.com"},
+]
+dependencies = [
+    "lxml",
+    "requests",
+    "PyYAML",
+    "click",
+    "requests-oauthlib",
+    "flask",
+    "tabulate",
+]
+requires-python = ">=3.6"
+readme = "README.md"
+license = {text = "MIT"}
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
 ]
 
-[tool.isort]
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-line_length = 100
-skip = [".ipython"]
-remove_redundant_aliases = true
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+inoreader = "inoreader.main:main"
+
+[project.urls]
+Homepage = "https://github.com/Linusp/python-inoreader"
+
+[tool.codespell]
+skip = "*.lock,./.tox,./.venv,./.git,./venv,./*.json,./*.jsonl,./*.yaml"
+quiet-level = 3
+ignore-words-list = "inoreader"
+count = ""
+
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+line-length = 100
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E201", "E202"]

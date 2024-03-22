@@ -16,13 +16,13 @@ class Subscription(object):
     @classmethod
     def from_json(cls, data):
         subscription_info = {
-            'id': data['id'],
-            'title': data['title'],
-            'categories': list(data['categories']),
-            'sortid': data['sortid'],
-            'firstitemmsec': data['firstitemmsec'],
-            'url': data['url'],
-            'htmlUrl': data['htmlUrl'],
-            'iconUrl': data['iconUrl'],
+            "id": data["id"],
+            "title": data["title"],
+            "categories": list(data["categories"]),
+            "sortid": data["sortid"],
+            "firstitemmsec": data["firstitemmsec"],
+            "url": data["url"],
+            "htmlUrl": data["htmlUrl"],
+            "iconUrl": data["iconUrl"],
         }
         return cls(**subscription_info)
