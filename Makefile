@@ -18,6 +18,12 @@ clean:
 venv:
 	- virtualenv --python=$(shell which python3) --prompt '<venv:inoreader>' venv
 
-deps:
-	- pip install -U pip setuptools
-	- pip install -r requirements.txt
+lock-requirements:
+	- pip install pip-tools -q
+	- pip-compile -o requirements.txt
+
+deps: lock-requirements
+	- pip-sync
+
+build: lint test
+	- python -m build
