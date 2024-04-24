@@ -172,14 +172,14 @@ class InoreaderClient(object):
         else:
             return response["items"], None
 
-    def fetch_articles(self, folder=None, tags=None, unread=True, starred=False, limit=None):
+    def fetch_articles(self, folder=None, tags=None, unread=True, starred=False, limit=None, n=50):
         self.check_token()
 
         url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH)
         if folder:
             url = urljoin(url, quote_plus(self.GENERAL_TAG_TEMPLATE.format(folder)))
 
-        params = {"c": str(uuid4())}
+        params = {"n": n, "c": str(uuid4())}
         if unread:
             params["xt"] = self.READ_TAG
 
