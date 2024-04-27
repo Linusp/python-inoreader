@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## v0.7.0
+
+Removed
+
+- Removed `InoreaderClient.get_stream_contents`.
+
+Changed
+
+- Add param `n` to `InoreaderClient.fetch_articles` to reduce the number of API calls, thanks to [tosborne-slalom](https://github.com/tosborne-slalom)
+- Supported `--batch-size` option in commands `fetch-articles`/`fetch-unread`/`fetch-starred`
+
 ## v0.6.0
 
 Publish to pypi!
