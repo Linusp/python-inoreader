@@ -161,14 +161,15 @@ class InoreaderClient(object):
         else:
             return response["items"], None
 
-    def fetch_articles(self, folder=None, tags=None, unread=True, starred=False, limit=None, n=50):
+    def fetch_articles(
+        self, stream_id=None, folder=None, tags=None, unread=True, starred=False, limit=None, n=50
+    ):
         self.check_token()
 
-        url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH)
-        if folder:
-            url = urljoin(url, quote_plus(self.GENERAL_TAG_TEMPLATE.format(folder)))
+        if not stream_id and folder:
+            stream_id = self.GENERAL_TAG_TEMPLATE.format(folder)
 
-        params = {"n": n, "c": str(uuid4())}
+        params = {"stream_id": stream_id, "n": n, "c": str(uuid4())}
         if unread:
             params["xt"] = self.READ_TAG
 
@@ -176,8 +177,8 @@ class InoreaderClient(object):
             params["it"] = self.STARRED_TAG
 
         fetched_count = 0
-        response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
-        for data in response["items"]:
+        items, continuation = self.__get_stream_contents(**params)
+        for data in items:
             categories = {
                 category.split("/")[-1]
                 for category in data.get("categories", [])
@@ -191,13 +192,10 @@ class InoreaderClient(object):
             if limit and fetched_count >= limit:
                 break
 
-        continuation = response.get("continuation")
         while continuation and (not limit or fetched_count < limit):
             params["c"] = continuation
-            response = self.parse_response(
-                self.session.post(url, params=params, proxies=self.proxies)
-            )
-            for data in response["items"]:
+            items, continuation = self.__get_stream_contents(**params)
+            for data in items:
                 categories = {
                     category.split("/")[-1]
                     for category in data.get("categories", [])
@@ -209,8 +207,6 @@ class InoreaderClient(object):
                 fetched_count += 1
                 if limit and fetched_count >= limit:
                     break
-
-            continuation = response.get("continuation")
 
     def fetch_unread(self, folder=None, tags=None, limit=None):
         for article in self.fetch_articles(folder=folder, tags=tags, unread=True):
