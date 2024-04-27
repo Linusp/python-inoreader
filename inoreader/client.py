@@ -143,29 +143,18 @@ class InoreaderClient(object):
         for item in response["subscriptions"]:
             yield Subscription.from_json(item)
 
-    def get_stream_contents(self, stream_id, c="", limit=None):
-        fetched_count = 0
-        stop = False
-        while not stop:
-            articles, c = self.__get_stream_contents(stream_id, c)
-            for a in articles:
-                try:
-                    yield Article.from_json(a)
-                    fetched_count += 1
-                except Exception as e:
-                    print(e)
-                    continue
-                if limit and fetched_count >= limit:
-                    stop = True
-                    break
-            if c is None:
-                break
-
-    def __get_stream_contents(self, stream_id, continuation=""):
+    def __get_stream_contents(
+        self, stream_id=None, n=50, r=None, ot=None, xt=None, it=None, c=None
+    ):
+        """reference: https://www.inoreader.com/developers/stream-contents"""
         self.check_token()
 
-        url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH + quote_plus(stream_id))
-        params = {"n": 50, "r": "", "c": continuation, "output": "json"}  # default 20, max 1000
+        url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH)
+        if stream_id:
+            url = urljoin(url, quote_plus(stream_id))
+
+        params = {"n": n, "r": r, "ot": ot, "xt": xt, "it": it, "c": c}
+        params = {arg: val for arg, val in params.items() if val is not None}
         response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
         if "continuation" in response:
             return response["items"], response["continuation"]
