@@ -200,6 +200,9 @@ def list_tags():
 @main.command("fetch-unread")
 @click.option("-f", "--folder", required=True, help="Folder which articles belong to")
 @click.option("-t", "--tags", help="Tag(s) for filtering, separate with comma")
+@click.option(
+    "--batch-size", type=int, default=50, help="Maximum number of articles per API request"
+)
 @click.option("-o", "--outfile", required=True, help="Filename to save articles")
 @click.option(
     "--out-format",
@@ -208,14 +211,14 @@ def list_tags():
     help="Format of output file, default: json",
 )
 @catch_error
-def fetch_unread(folder, tags, outfile, out_format):
+def fetch_unread(folder, tags, batch_size, outfile, out_format):
     """Fetch unread articles"""
     client = get_client()
 
     tag_list = [] if not tags else tags.split(",")
     fout = codecs.open(outfile, mode="w", encoding="utf-8")
     writer = csv.writer(fout, delimiter=",") if out_format == "csv" else None
-    for idx, article in enumerate(client.fetch_unread(folder=folder, tags=tag_list)):
+    for idx, article in enumerate(client.fetch_unread(folder=folder, tags=tag_list, n=batch_size)):
         if idx > 0 and (idx % 10) == 0:
             LOGGER.info("fetched %d articles", idx)
         title = article.title
@@ -391,6 +394,10 @@ def get_subscriptions(outfile, folder, out_format):
 
 @main.command("fetch-articles")
 @click.option("-i", "--stream-id", required=True, help="Stream ID which you want to fetch")
+@click.option(
+    "--batch-size", type=int, default=50, help="Maximum number of articles per API request"
+)
+@click.option("--only-unread", is_flag=True, help="Fetch unread articles only")
 @click.option("-o", "--outfile", required=True, help="Filename to save results")
 @click.option(
     "--out-format",
@@ -399,7 +406,7 @@ def get_subscriptions(outfile, folder, out_format):
     help="Format of output, default: json",
 )
 @catch_error
-def fetch_articles(outfile, stream_id, out_format):
+def fetch_articles(outfile, stream_id, batch_size, only_unread, out_format):
     """Fetch articles by stream id"""
     client = get_client()
 
@@ -409,7 +416,9 @@ def fetch_articles(outfile, stream_id, out_format):
         writer = csv.DictWriter(fout, ["title", "content"], delimiter=",", quoting=csv.QUOTE_ALL)
         writer.writeheader()
 
-    for idx, article in enumerate(client.get_stream_contents(stream_id)):
+    for idx, article in enumerate(
+        client.fetch_articles(stream_id=stream_id, n=batch_size, unread=only_unread)
+    ):
         if idx > 0 and (idx % 10) == 0:
             LOGGER.info("fetched %d articles", idx)
 
@@ -470,6 +479,9 @@ def dedupe(folder, thresh):
 @click.option("-f", "--folder", help="Folder which articles belong to")
 @click.option("-t", "--tags", help="Tag(s) for filtering, separate with comma")
 @click.option(
+    "--batch-size", type=int, default=50, help="Maximum number of articles per API request"
+)
+@click.option(
     "-o", "--outfile", help="Filename to save articles, required when output format is `csv`"
 )
 @click.option(
@@ -484,7 +496,7 @@ def dedupe(folder, thresh):
     help="Format of output file, default: json",
 )
 @catch_error
-def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
+def fetch_starred(folder, tags, batch_size, outfile, outdir, limit, save_image, out_format):
     """Fetch starred articles"""
     client = get_client()
 
@@ -506,7 +518,7 @@ def fetch_starred(folder, tags, outfile, outdir, limit, save_image, out_format):
     tag_list = [] if not tags else tags.split(",")
     url_to_image = {}
     fetched_count = 0
-    for article in client.fetch_starred(folder=folder, tags=tag_list, limit=limit):
+    for article in client.fetch_starred(folder=folder, tags=tag_list, limit=limit, n=batch_size):
         if limit and fetched_count >= limit:
             break
 
