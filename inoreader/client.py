@@ -208,12 +208,14 @@ class InoreaderClient(object):
                 if limit and fetched_count >= limit:
                     break
 
-    def fetch_unread(self, folder=None, tags=None, limit=None):
-        for article in self.fetch_articles(folder=folder, tags=tags, unread=True):
+    def fetch_unread(self, folder=None, tags=None, limit=None, n=None):
+        for article in self.fetch_articles(folder=folder, tags=tags, unread=True, n=n):
             yield article
 
-    def fetch_starred(self, folder=None, tags=None, limit=None):
-        for article in self.fetch_articles(folder=folder, tags=tags, unread=False, starred=True):
+    def fetch_starred(self, folder=None, tags=None, limit=None, n=None):
+        for article in self.fetch_articles(
+            folder=folder, tags=tags, unread=False, starred=True, n=n
+        ):
             yield article
 
     def add_general_label(self, articles, label):
