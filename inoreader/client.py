@@ -143,43 +143,33 @@ class InoreaderClient(object):
         for item in response["subscriptions"]:
             yield Subscription.from_json(item)
 
-    def get_stream_contents(self, stream_id, c="", limit=None):
-        fetched_count = 0
-        stop = False
-        while not stop:
-            articles, c = self.__get_stream_contents(stream_id, c)
-            for a in articles:
-                try:
-                    yield Article.from_json(a)
-                    fetched_count += 1
-                except Exception as e:
-                    print(e)
-                    continue
-                if limit and fetched_count >= limit:
-                    stop = True
-                    break
-            if c is None:
-                break
-
-    def __get_stream_contents(self, stream_id, continuation=""):
+    def __get_stream_contents(
+        self, stream_id=None, n=50, r=None, ot=None, xt=None, it=None, c=None
+    ):
+        """reference: https://www.inoreader.com/developers/stream-contents"""
         self.check_token()
 
-        url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH + quote_plus(stream_id))
-        params = {"n": 50, "r": "", "c": continuation, "output": "json"}  # default 20, max 1000
+        url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH)
+        if stream_id:
+            url = urljoin(url, quote_plus(stream_id))
+
+        params = {"n": n, "r": r, "ot": ot, "xt": xt, "it": it, "c": c}
+        params = {arg: val for arg, val in params.items() if val is not None}
         response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
         if "continuation" in response:
             return response["items"], response["continuation"]
         else:
             return response["items"], None
 
-    def fetch_articles(self, folder=None, tags=None, unread=True, starred=False, limit=None, n=50):
+    def fetch_articles(
+        self, stream_id=None, folder=None, tags=None, unread=True, starred=False, limit=None, n=50
+    ):
         self.check_token()
 
-        url = urljoin(BASE_URL, self.STREAM_CONTENTS_PATH)
-        if folder:
-            url = urljoin(url, quote_plus(self.GENERAL_TAG_TEMPLATE.format(folder)))
+        if not stream_id and folder:
+            stream_id = self.GENERAL_TAG_TEMPLATE.format(folder)
 
-        params = {"n": n, "c": str(uuid4())}
+        params = {"stream_id": stream_id, "n": n, "c": str(uuid4())}
         if unread:
             params["xt"] = self.READ_TAG
 
@@ -187,8 +177,8 @@ class InoreaderClient(object):
             params["it"] = self.STARRED_TAG
 
         fetched_count = 0
-        response = self.parse_response(self.session.post(url, params=params, proxies=self.proxies))
-        for data in response["items"]:
+        items, continuation = self.__get_stream_contents(**params)
+        for data in items:
             categories = {
                 category.split("/")[-1]
                 for category in data.get("categories", [])
@@ -202,13 +192,10 @@ class InoreaderClient(object):
             if limit and fetched_count >= limit:
                 break
 
-        continuation = response.get("continuation")
         while continuation and (not limit or fetched_count < limit):
             params["c"] = continuation
-            response = self.parse_response(
-                self.session.post(url, params=params, proxies=self.proxies)
-            )
-            for data in response["items"]:
+            items, continuation = self.__get_stream_contents(**params)
+            for data in items:
                 categories = {
                     category.split("/")[-1]
                     for category in data.get("categories", [])
@@ -221,14 +208,14 @@ class InoreaderClient(object):
                 if limit and fetched_count >= limit:
                     break
 
-            continuation = response.get("continuation")
-
-    def fetch_unread(self, folder=None, tags=None, limit=None):
-        for article in self.fetch_articles(folder=folder, tags=tags, unread=True):
+    def fetch_unread(self, folder=None, tags=None, limit=None, n=None):
+        for article in self.fetch_articles(folder=folder, tags=tags, unread=True, n=n):
             yield article
 
-    def fetch_starred(self, folder=None, tags=None, limit=None):
-        for article in self.fetch_articles(folder=folder, tags=tags, unread=False, starred=True):
+    def fetch_starred(self, folder=None, tags=None, limit=None, n=None):
+        for article in self.fetch_articles(
+            folder=folder, tags=tags, unread=False, starred=True, n=n
+        ):
             yield article
 
     def add_general_label(self, articles, label):
