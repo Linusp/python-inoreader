@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v0.7.1
+
+Changed
+
+- Optimized `InoreaderClient.fetch_articles` for less API calls when tags are specified
+
 ## v0.7.0
 
 Removed
