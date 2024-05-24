@@ -166,8 +166,11 @@ class InoreaderClient(object):
     ):
         self.check_token()
 
-        if not stream_id and folder:
-            stream_id = self.GENERAL_TAG_TEMPLATE.format(folder)
+        if not stream_id:
+            if folder:
+                stream_id = self.GENERAL_TAG_TEMPLATE.format(folder)
+            elif tags:
+                stream_id = self.GENERAL_TAG_TEMPLATE.format(tags[0])
 
         params = {"stream_id": stream_id, "n": n, "c": str(uuid4())}
         if unread:
